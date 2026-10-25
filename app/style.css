@@ -1,21 +1,46 @@
-  html, body {
-    margin: 0; padding: 0;
-    background: #0d0f1e;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    min-height: 100vh;
-    font-family: monospace;
-  }
-  canvas {
-    background: #12142a;
-    border: 2px solid #2c2f52;
-    border-radius: 6px;
-    image-rendering: pixelated;
-    max-width: 96vw;
-    height: auto;
-    touch-action: none;
-    cursor: crosshair;
-  }
-  .hint {
-    color: #5a5e8a; font-size: 12px; margin-top: 8px; text-align: center;
-  }
+/* Page chrome uses the qbit design system (dark theme, canonical look).
+   Colors are RGB triplets applied via rgb()/rgba(), as the system requires.
+   The game canvas keeps its own palette - it repaints every frame. */
+:root {
+  --color-bg: 5, 8, 16;
+  --color-surface: 11, 16, 27;
+  --color-border-muted: 35, 44, 64;
+  --color-border-strong: 58, 69, 92;
+  --color-text: 238, 243, 250;
+  --color-text-muted: 150, 162, 181;
+  --color-primary: 64, 156, 255;
+  --color-secondary: 178, 122, 255;
+  --color-shadow: rgba(3, 7, 15, 0.45);
+  --color-glow-primary: rgba(64, 156, 255, 0.06);
+  --color-glow-secondary: rgba(178, 122, 255, 0.05);
+}
+
+html, body {
+  margin: 0; padding: 0;
+  background: rgb(var(--color-bg));
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh;
+  font-family: monospace;
+  color: rgb(var(--color-text));
+}
+
+canvas {
+  background: #12142a; /* game palette: repainted every frame */
+  border: 2px solid rgba(var(--color-primary), 0.16);
+  border-radius: 6px;
+  image-rendering: pixelated;
+  max-width: 96vw;
+  height: auto;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow:
+    0 0 40px var(--color-glow-primary),
+    0 24px 60px var(--color-glow-secondary),
+    var(--color-shadow);
+}
+
+.hint {
+  color: rgb(var(--color-text-muted));
+  font-size: 12px; margin-top: 8px; text-align: center;
+}
