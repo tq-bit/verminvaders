@@ -1,15 +1,10 @@
-// CLI plumbing for the harness entrypoint: argument parsing,
+// CLI plumbing for the harness entrypoint: argument parsing (commander),
 // .env loading, and integer environment variables.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { Command, CommanderError } from "commander";
 import { c } from "./colors.ts";
 import type { Args } from "../types/index.d.ts";
-
-function requireValue(argv: string[], i: number, flag: string): string {
-  const v = argv[i];
-  if (v === undefined) throw new Error(`${flag} requires a value`);
-  return v;
-}
 
 // Minimal .env loader (KEY=VALUE lines); does not override existing env vars.
 export async function loadEnvFile(file: string): Promise<void> {
@@ -38,43 +33,54 @@ export function intEnv(name: string, fallback: number): number {
   return n;
 }
 
+const DEFAULT_GAME = () => path.resolve(import.meta.dirname, "..", "..", "app", "index.html");
+const DEFAULT_MEMORY = () =>
+  path.resolve(import.meta.dirname, "..", "..", "memory", "mistral-strategy.json");
+
 export function parseArgs(argv: string[]): Args {
-  const args: Args = {
-    headed: false,
-    mode: "realtime",
-    pollMs: 80,
-    maxGames: 3,
-    gamePath: path.resolve(import.meta.dirname, "..", "..", "app", "index.html"),
-    logLevel: "normal",
-    model: "mistral-large-4",
-    epochMs: 10000,
-    memoryPath: path.resolve(import.meta.dirname, "..", "..", "memory", "mistral-strategy.json"),
-    style: "",
-    noLlm: false,
-  };
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    switch (a) {
-      case "--headed": args.headed = true; break;
-      case "--mode": args.mode = requireValue(argv, ++i, a) as Args["mode"]; break;
-      case "--poll": args.pollMs = Number(requireValue(argv, ++i, a)); break;
-      case "--games": args.maxGames = Number(requireValue(argv, ++i, a)); break;
-      case "--persona": args.personaPath = requireValue(argv, ++i, a); break;
-      case "--game": args.gamePath = path.resolve(requireValue(argv, ++i, a)); break;
-      case "--log-level": args.logLevel = requireValue(argv, ++i, a) as Args["logLevel"]; break;
-      case "--model": args.model = requireValue(argv, ++i, a); break;
-      case "--epoch-ms": args.epochMs = Number(requireValue(argv, ++i, a)); break;
-      case "--memory": args.memoryPath = path.resolve(requireValue(argv, ++i, a)); break;
-      case "--style": args.style = requireValue(argv, ++i, a); break;
-      case "--no-llm": args.noLlm = true; break;
-      case "--help":
-      case "-h":
-        console.log("node main.ts [--headed] [--mode realtime|considered] [--poll ms] [--games n] [--persona path] [--game path] [--log-level silent|normal|verbose] [--model name] [--epoch-ms n] [--memory path] [--style 'directive'] [--no-llm]");
-        process.exit(0);
-        break;
-      default:
-        throw new Error(`unknown argument: ${a}`);
+  const program = new Command()
+    .name("verminvaders")
+    .description("Verminvaders harness: a fat cat vs. the rodent armada, tuned by Mistral.")
+    .option("--headed", "show the browser window")
+    .option("--mode <mode>", "realtime or considered", "realtime")
+    .option("--poll <ms>", "executor tick interval in ms", Number, 80)
+    .option("--games <n>", "games per session", Number, 3)
+    .option("--persona <path>", "custom fat-cat lines file")
+    .option("--game <path>", "path to the game page")
+    .option("--log-level <level>", "silent | normal | verbose", "normal")
+    .option("--model <name>", "which Mistral model is the strategic brain", "mistral-large-4")
+    .option("--epoch-ms <n>", "length of one playing epoch in ms", Number, 10000)
+    .option("--memory <path>", "where the model's persistent memory lives")
+    .option("--style <directive>", "operator directive injected into the model's prompt", "")
+    .option("--no-llm", "skip all API calls; the executor plays with default parameters")
+    .option("--no-thinking", "hide the model's reasoning; show a Strategizing indicator instead")
+    .exitOverride((err) => {
+      // --help / -h print and exit cleanly; everything else is a thrown error
+      if (err.code === "commander.helpDisplayed" || err.code === "commander.version") process.exit(0);
+      throw err;
+    });
+  try {
+    program.parse(argv.slice(2), { from: "user" });
+  } catch (e) {
+    if (e instanceof CommanderError) {
+      throw new Error(String(e.message).replace(/^error:\s*/i, ""));
     }
+    throw e;
   }
-  return args;
+  const o = program.opts<Record<string, unknown>>();
+  return {
+    headed: !!o.headed,
+    mode: o.mode as Args["mode"],
+    pollMs: o.poll as number,
+    maxGames: o.games as number,
+    personaPath: o.persona as string | undefined,
+    gamePath: o.game ? path.resolve(String(o.game)) : DEFAULT_GAME(),
+    logLevel: o.logLevel as Args["logLevel"],
+    model: o.model as string,
+    epochMs: o.epochMs as number,
+    memoryPath: o.memory ? path.resolve(String(o.memory)) : DEFAULT_MEMORY(),
+    style: o.style as string,
+    noLlm: o.llm === false,
+    thinking: o.thinking !== false,
+  };
 }

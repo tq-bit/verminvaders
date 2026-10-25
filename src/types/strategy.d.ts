@@ -52,6 +52,7 @@ export interface MemoryFile {
 }
 
 export interface StrategyEvents {
+  onStrategyStart?: () => void;
   onStrategy?: (notes: string, params: ExecutorParams) => void;
   onThinkingDelta?: (delta: string) => void;
   onThinkingEnd?: () => void;

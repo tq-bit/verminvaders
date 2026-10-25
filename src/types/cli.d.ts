@@ -13,4 +13,6 @@ export interface Args {
   memoryPath: string;
   style: string;
   noLlm: boolean;
+  /** stream the model's reasoning text (false: show a Strategizing indicator) */
+  thinking: boolean;
 }

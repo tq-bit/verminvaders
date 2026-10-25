@@ -6,7 +6,9 @@
 // Usage:
 //   node main.ts [--headed] [--mode realtime|considered] [--poll <ms>]
 //                [--games <n>] [--persona <path>] [--game <path>]
-//                [--log-level silent|normal|verbose]
+//                [--log-level silent|normal|verbose] [--model <name>]
+//                [--epoch-ms <n>] [--memory <path>] [--style 'directive']
+//                [--no-llm] [--no-thinking]
 
 import path from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
@@ -86,7 +88,10 @@ async function main(): Promise<void> {
       return;
     }
     const client = new MistralClient(apiKey, args.model);
-    const thinking = new ThinkingRenderer(args.model);
+    const thinking = new ThinkingRenderer(
+      args.model,
+      args.thinking && args.logLevel !== "silent",
+    );
     const limits = {
       contextGames: intEnv("VERMINVADERS_CONTEXT_GAMES", 5),
       maxMemoryGames: intEnv("VERMINVADERS_MEMORY_MAX_GAMES", 10),
@@ -95,6 +100,7 @@ async function main(): Promise<void> {
       client,
       args.memoryPath,
       {
+        onStrategyStart: () => thinking.begin(),
         onThinkingDelta: (delta) => thinking.push("thinking", delta),
         onThinkingEnd: () => thinking.finish(),
         onStrategy: (notes, params) => {

@@ -187,6 +187,7 @@ export class StrategyController {
       { role: "user", content: `${instruction}\n\n${JSON.stringify(payload)}` },
     ] as Array<{ role: "system" | "user" | "assistant"; content: string }>;
     try {
+      this.cb.onStrategyStart?.(); // spinner or reasoning stream begins
       const schema = this.loadSchema();
       const text = await this.client.chat(
         messages,
