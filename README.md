@@ -1,113 +1,66 @@
-# Verminvaders — AI Harness
+# Verminvaders — AI Harness challenge for Le Chonk
 
-A terminal-driven AI harness that plays **Verminvaders** (a Space-Invaders-style game in
-which a cat defends a lasagna slice from rodents) through the game's in-page bridge API.
-The harness never reads pixels and never modifies the game: `window.verminvaders` is the
-single source of truth and the only control surface.
+This repostory was made for the October Community Challenge by https://mistral.ai/. It builds up on the game Space Invaders by Taito, originally developed and released in 1978 Japan. It also uses original design from the Mistral Vibe CLI (I love the dot design of the cat and [adapted it from this file](https://github.com/mistralai/mistral-vibe/blob/63d0e8f17e2c1f0d9e1d6f4399ab2dc10fbdf477/vibe/cli-rust/src/ui/banner/petit_chat.rs))
 
-What makes it interesting: the game is played by a **local executor** (aim math, march
-prediction, Roomba lead, crumb dodging), but the *strategy* is set by **Mistral AI**.
-Every epoch (default 10 seconds) the harness pauses the game, sends the state plus an
-epoch report plus the model's own persistent memory to `mistral-large-4`, and the model
-returns a tuned parameter set and an updated memory object. Because memory survives
-epochs, games, and sessions, the model is meant to get better the longer it plays.
+The goal is to defend earth (= a piece of lasagna) from invaders (= hungry mice and rodents) by shooting (= spitting furballs at) them.
 
-While the model thinks, its reasoning is streamed live to the terminal (dim gray), and a
-fat cat narrates the session with commentary lines you can edit freely.
+> Note: No cats or rodents were hurt during this game's development
 
-## Play the demo
+Since I had no prior experience developing games nor developing AI harnesses, Mistral Vibe did the major development part. My contribution was mainly the idea, name, some details about the figures and design. I did learn a lot about harness development though (and how close we are to AI furtherly developing itself).
 
-The game is playable in the browser, no install needed:
+If you're curious about the game yourself, you can find it under **https://tq-bit.github.io/verminvaders/**
 
-- **https://tq-bit.github.io/verminvaders/** — deployed by the
-  `Deploy demo to GitHub Pages` workflow on every push to `main` that touches `app/`.
-  Enable it once in repo Settings > Pages: **Source: GitHub Actions**.
-- locally: open `app/index.html` in a browser, or run the harness below.
+## The technical part
 
-## Project layout
+The harness uses Playwright on a Chromium Server. It talks to the game's Harness Bridge (`window.verminvaders`) to read the game's current state and feed it to the model, which then strategizes what to do next. Each strategy is fed back into the harness and the next round (= game epoch) starts. This loop goes on until all rodents are eliminiated or the cat is overwhelmed.
+
+> To make it fair-play, the defending feline takes a catnap during strategizing.
+
+The harness has a simple memory function built-in to strategize and learn from previous mistakes. Turns out it is able to play the game much better than I used to be.
+
+### How a session flows
 
 ```
-app/
-    index.html              the game page (loads style.css and game.js)
-    style.css               page styling
-    game.js                 the game (canvas, bridge API `window.verminvaders`)
-spec/                         the harness specification (requirements)
-src/
-  main.ts                     lean entrypoint: wires the pieces and runs the session
-  types/                      all shared types, by module, re-exported from index.d.ts
-    index.d.ts                import types from here (type-only imports)
-    game.d.ts                  bridge snapshot types (GameState, ...)
-    policy.d.ts, driver.d.ts, llm.d.ts, strategy.d.ts, persona.d.ts, cli.d.ts
-  constants/                  all runtime constants, by module, re-exported from index.ts
-    game.ts                   arena/cat/furball/march geometry
-    policy.ts, driver.ts, persona.ts, llm.ts   tuning knobs and defaults
-  errors/mistral-error.ts     custom errors
-  llm/
-    mistral-client.ts         streaming chat-completions client (class only)
-    sse.ts                    SSE stream consumption (functions)
-  policy/
-    aim.ts                    pure math: flight time, march prediction, corridors
-    dodge.ts                  crumb threat detection, safe-corridor search
-    hot-corridors.ts          falling-crumb corridor detection
-    heuristic.ts              the parameterized executor (class only)
-  driver/
-    connection.ts             bridge over CDP (latency-compensated state reads)
-    driver.ts                 tick loop, phase handling, pause watchdog (class only)
-    strategy-controller.ts    epoch/post-mortem flow, memory persistence (class only)
-    strategy-prompt.ts        system prompt + compact state builders
-    strategy-params.ts        model answer parsing + parameter normalization
-    epoch-tracker.ts          per-epoch stats: shots, crumb fire, near misses (class only)
-    stats.ts                  wave and session summaries (class only)
-    sleep.ts, constants moved to src/constants/
-  persona/
-    lines.json                the fat cat's lines — edit these!
-    lines.ts                  line loading and validation
-    persona.ts                cooldown-aware narrator (class only)
-  ui/
-    cli.ts                    CLI argument parsing, .env loading, env ints
-    colors.ts                 TTY-aware ANSI colors
-    thinking-renderer.ts      live reasoning stream renderer (class only)
-  www/
-    static-server.ts          tiny static server for the game directory
-  tests/                      48 unit tests (no network needed)
-memory/                       the model's persistent strategy memory (gitignored)
+serve game -> launch Chromium -> connect to window.verminvaders (10 s timeout)
+  -> start() on title
+  -> executor ticks every 80 ms (aim, dodge, shoot, reposition)
+  -> every epoch: pause -> stream state + report + memory to Mistral
+       (report includes crumb firing statistics: crumbs fired,
+        per-column spawn histogram, near misses)
+       -> model reasons (streamed live) -> returns params + memory
+       -> apply params, persist memory, resume
+  -> game over: post-mortem into memory -> next game (up to --games)
+  -> session summary (games, best score, shots, hits, duration)
 ```
 
-## Setup
+The game is only ever paused while the model thinks; a `finally` watchdog guarantees it
+resumes even if the model call, the parser, or the process shutdown path fails. Ctrl+C
+stops the harness, resumes the game, and closes the browser cleanly.
 
-Requirements: **Node.js 24+** (TypeScript runs natively via type stripping), npm, and a
-Chromium download (handled by Playwright).
+## Run the harness
 
+### Requirements
+
+- **Node.js 24+** (TypeScript runs natively via type stripping), npm, and a Chromium download.
+- Also, copy the .env.example file and add a MISTRAL_API_KEY
+
+To get started, run
 ```bash
 cd src
-
 # install dependencies (incl. Playwright)
 npm install
-
 # download the headless Chromium used to run the game page
 npx playwright install chromium
+# copy the env-file. Remember to fill it with the API key
+cp .env.example .env
 ```
 
-### API key and environment variables
-
-The strategy brain calls the Mistral API. Put your key in `src/.env`:
-
-```
-MISTRAL_API_KEY=your-key-here
-```
-
-Two optional variables tune how much history the model works with:
+Two optional environment-variables tune how much history the model works with:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `VERMINVADERS_CONTEXT_GAMES` | `5` | How many previous games (their strategy summaries and stats) are included in every prompt. `0` = start each game with no game history. |
 | `VERMINVADERS_MEMORY_MAX_GAMES` | `10` | Maximum number of game records persisted in `memory/mistral-strategy.json`. Older records are dropped when the cap is exceeded. |
-
-`src/.env` is gitignored; the file may also carry other `KEY=VALUE` pairs — they are
-loaded without overriding variables already present in your environment. A real
-environment variable takes precedence over the `.env` file.
-
-No key? Run the local executor only with `--no-llm` (no API calls, default parameters).
 
 ## Run
 
@@ -118,16 +71,16 @@ node main.ts                # 3 games, mistral-large-4, 10 s epochs, headless
 node main.ts --headed       # watch it play in a Chromium window
 ```
 
-The terminal shows the fat cat's commentary (magenta face, yellow line), the model's
-live reasoning (dim gray) followed by its strategy notes (cyan) and parameter set
-(green), wave summaries, and a session summary.
+### Tests
 
 ```bash
 npm test                    # run the unit tests
 npm run typecheck           # tsc --noEmit
 ```
 
-## Flags
+### Flags
+
+You can tweak how the AI plays the game. `--headed` allows you to watch the model play and `--style` controls the default behavior when playing the game. See 'Adjusting the AI's behavior' for more details on this.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
@@ -158,7 +111,7 @@ node main.ts
 rm memory/mistral-strategy.json
 ```
 
-## Adjusting the AI's behavior
+### Adjusting the AI's behavior
 
 Two layers are adjustable:
 
@@ -186,54 +139,4 @@ Two layers are adjustable:
 
    Defaults live in `src/policy/heuristic.ts` (`DEFAULT_EXECUTOR_PARAMS`).
 
-## Per-game strategy summaries and memory cleanup
 
-At the end of every game the model writes a **gameSummary** — a concise strategy
-summary of that game (what worked, what failed, the most important change) — which is
-stored on the game's record in `memory/mistral-strategy.json` alongside its stats and
-the executor parameters used. Later games receive the most recent summaries (bounded by
-`VERMINVADERS_CONTEXT_GAMES`) so the model builds on them instead of repeating
-mistakes.
-
-The post-mortem is also a **memory cleanup pass**: the model is instructed to
-consolidate its free-form memory — merge duplicated lessons, combine near-identical
-strategies (e.g. repeated parameter-history entries), and remove redundant or
-outdated observations — before it is written back. The file itself never grows past
-`VERMINVADERS_MEMORY_MAX_GAMES` game records. Deleting
-`memory/mistral-strategy.json` resets all learning.
-
-## The fat cat
-
-All quips live in `src/persona/lines.json` — faces and one line per event category
-(`boot`, `gameStart`, `waveClear`, `roombaHit`, `lifeLost`, `dodge`, `idle`, `gameOver`,
-`sessionEnd`). Edit them freely, or point `--persona` at your own file (same JSON
-shape). Lines are picked randomly with per-category cooldowns so the cat does not spam.
-
-## How a session flows
-
-```
-serve game -> launch Chromium -> connect to window.verminvaders (10 s timeout)
-  -> start() on title
-  -> executor ticks every 80 ms (aim, dodge, shoot, reposition)
-  -> every epoch: pause -> stream state + report + memory to Mistral
-       (report includes crumb firing statistics: crumbs fired,
-        per-column spawn histogram, near misses)
-       -> model reasons (streamed live) -> returns params + memory
-       -> apply params, persist memory, resume
-  -> game over: post-mortem into memory -> next game (up to --games)
-  -> session summary (games, best score, shots, hits, duration)
-```
-
-The game is only ever paused while the model thinks; a `finally` watchdog guarantees it
-resumes even if the model call, the parser, or the process shutdown path fails. Ctrl+C
-stops the harness, resumes the game, and closes the browser cleanly.
-
-## Notes and limits
-
-- Each epoch costs roughly 30 s of model thinking plus tokens (~1.5k reasoning tokens
-  observed with `mistral-large-4`). Use `--model` to pick a faster model or
-  `--epoch-ms` to change the thinking cadence.
-- The model's memory file may contain its own opinions about the game's geometry;
-  deleting `memory/mistral-strategy.json` resets its learning to zero.
-- The harness intentionally never edits the game page; the only API used is the
-  documented bridge (`spec/verminvaders-harness-specification.md`).
