@@ -12,7 +12,7 @@ describe("parseArgs (commander)", () => {
     assert.equal(a.maxGames, 3);
     assert.equal(a.logLevel, "normal");
     assert.equal(a.model, "mistral-large-4");
-    assert.equal(a.epochMs, 10000);
+    assert.equal(a.epochMs, undefined, "no --epoch-ms: per-wave strategy");
     assert.equal(a.style, "");
     assert.equal(a.noLlm, false);
     assert.equal(a.thinking, true, "reasoning streams unless --no-thinking");

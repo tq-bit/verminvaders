@@ -9,7 +9,8 @@ export interface Args {
   gamePath: string;
   logLevel: "silent" | "normal" | "verbose";
   model: string;
-  epochMs: number;
+  /** strategy-epoch length in ms; undefined = no epoch updates (per-wave) */
+  epochMs?: number;
   memoryPath: string;
   style: string;
   noLlm: boolean;

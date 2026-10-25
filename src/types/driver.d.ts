@@ -6,7 +6,8 @@ export interface RunOptions {
   mode: RunMode;
   pollMs: number;
   maxGames: number;
-  epochMs: number; // strategy-epoch length for the LLM brain (0 = no epochs)
+  /** strategy-epoch length in ms; undefined = no epoch updates (per-wave strategy) */
+  epochMs?: number;
   logLevel: "silent" | "normal" | "verbose";
 }
 

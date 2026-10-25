@@ -87,7 +87,7 @@ You can tweak how the AI plays the game. `--headed` allows you to watch the mode
 | `--headed` | headless | Open a visible Chromium window and watch the game. |
 | `--games <n>` | `3` | Auto-restart up to n games per session. |
 | `--model <name>` | `mistral-large-4` | Which Mistral model is the strategic brain. |
-| `--epoch-ms <n>` | `10000` | Length of one playing epoch before the model is consulted. |
+| `--epoch-ms <n>` | (none) | Strategy epoch length: the model is consulted mid-play every n ms. Omit it for per-wave strategy — no mid-wave stops, the model retunes once per cleared wave (plus opening/post-mortem). |
 | `--style '<directive>'` | (none) | Operator directive injected into the model's prompt — see below. |
 | `--memory <path>` | `memory/mistral-strategy.json` | Where the model's persistent memory lives. |
 | `--persona <path>` | `src/persona/lines.json` | Custom fat-cat lines file. |

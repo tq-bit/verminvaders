@@ -47,7 +47,7 @@ describe("promptConfig", () => {
     const rl = scripted(["", "", "", ""]);
     const a = await promptConfig(base(), rl);
     assert.equal(a.maxGames, 3);
-    assert.equal(a.epochMs, 10000);
+    assert.equal(a.epochMs, undefined, "empty answer keeps the per-wave default");
     assert.equal(a.style, "");
     assert.equal(a.thinking, true);
   });
@@ -62,20 +62,28 @@ describe("promptConfig", () => {
   });
 
   it("offers flag values as the defaults and keeps them on Enter", async () => {
-    const preset = parseArgs(["node", "main.ts", "--games", "9", "--style", "cowardly cat"]);
+    const preset = parseArgs(["node", "main.ts", "--games", "9", "--epoch-ms", "4000", "--style", "cowardly cat"]);
     const rl = scripted(["", "", "", ""]);
     const a = await promptConfig(preset, rl);
     assert.equal(a.maxGames, 9);
+    assert.equal(a.epochMs, 4000);
     assert.equal(a.style, "cowardly cat");
     assert.ok(rl.seen[0].includes("(9)"), "flag value must be shown as the default");
+    assert.ok(rl.seen[1].includes("(4)"), "epoch flag value must be shown in seconds");
     assert.ok(rl.seen[2].includes("(cowardly cat)"));
+  });
+
+  it("shows the per-wave default when no epoch flag is given", async () => {
+    const rl = scripted(["", "", "", ""]);
+    await promptConfig(base(), rl);
+    assert.ok(rl.seen[1].includes("(per wave)"), "the epoch default must read 'per wave'");
   });
 
   it("falls back to the default on garbage input", async () => {
     const rl = scripted(["banana", "later", "", ""]);
     const a = await promptConfig(base(), rl);
     assert.equal(a.maxGames, 3);
-    assert.equal(a.epochMs, 10000);
+    assert.equal(a.epochMs, undefined, "invalid epoch keeps the per-wave default");
     assert.equal(a.style, "");
   });
 });

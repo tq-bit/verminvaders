@@ -49,7 +49,7 @@ export function parseArgs(argv: string[]): Args {
     .option("--game <path>", "path to the game page")
     .option("--log-level <level>", "silent | normal | verbose", "normal")
     .option("--model <name>", "which Mistral model is the strategic brain", "mistral-large-4")
-    .option("--epoch-ms <n>", "length of one playing epoch in ms", Number, 10000)
+    .option("--epoch-ms <n>", "strategy epoch in ms; omit for per-wave strategy (no mid-wave updates)", Number)
     .option("--memory <path>", "where the model's persistent memory lives")
     .option("--style <directive>", "operator directive injected into the model's prompt", "")
     .option("--no-llm", "skip all API calls; the executor plays with default parameters")
@@ -78,7 +78,7 @@ export function parseArgs(argv: string[]): Args {
     gamePath: o.game ? path.resolve(String(o.game)) : DEFAULT_GAME(),
     logLevel: o.logLevel as Args["logLevel"],
     model: o.model as string,
-    epochMs: o.epochMs as number,
+    epochMs: o.epochMs as number | undefined,
     memoryPath: o.memory ? path.resolve(String(o.memory)) : DEFAULT_MEMORY(),
     style: o.style as string,
     noLlm: o.llm === false,

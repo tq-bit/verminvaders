@@ -84,11 +84,14 @@ export class Harness {
         await this.handleWavePlan(s); // re-plan during the intermission
         return; // no commands while the wave-clear banner shows
       }
-      if (this.strategy) {
+      // epoch updates run only when an epoch length is configured; without
+      // --epoch-ms the wave is the strategy period: no mid-wave stops, the
+      // wave plan at the waveclear intermission is the mid-game consultation
+      if (this.strategy && this.opts.epochMs !== undefined) {
         if (this.epochNeedsStart) {
           this.strategy.startEpoch(s);
           this.epochNeedsStart = false;
-          this.nextStrategyAt = Date.now() + this.opts.epochMs;
+          this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
         } else if (Date.now() >= this.nextStrategyAt) {
           await this.updateStrategy(s);
           return; // re-decide on the next tick with fresh params
@@ -144,7 +147,7 @@ export class Harness {
         (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
       }
       this.strategy.startEpoch(fresh);
-      this.nextStrategyAt = Date.now() + this.opts.epochMs;
+      this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
     } finally {
       // watchdog: a crash in the LLM path must never leave the game frozen
       await this.conn.resume().catch(() => {});
@@ -166,7 +169,7 @@ export class Harness {
       if (params) {
         (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
       }
-      this.nextStrategyAt = Date.now() + this.opts.epochMs;
+      this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
     } finally {
       // watchdog: a crash in the LLM path must never leave the game frozen
       await this.conn.resume().catch(() => {});

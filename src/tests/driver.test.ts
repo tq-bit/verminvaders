@@ -68,6 +68,33 @@ describe("Harness wave planning", () => {
     assert.equal(waveCalls, 1, "the pending flag gates repeat consultations");
   });
 
+  it("skips epoch updates entirely when no epoch length is configured", async () => {
+    const conn = { ...fakeConn(), readState: async () => makeState() };
+    let epochCalls = 0;
+    const strategy = {
+      tracker: { observe: () => {}, noteShot: () => {} },
+      startEpoch: () => {
+        throw new Error("must not start an epoch");
+      },
+      epochUpdate: async () => {
+        epochCalls++;
+        return null;
+      },
+    };
+    const harness = new Harness(
+      conn as never,
+      new HeuristicPolicy(),
+      { event: () => {} } as never,
+      opts({ epochMs: undefined }),
+      {},
+      strategy as never,
+    );
+    for (let i = 0; i < 3; i++) {
+      await (harness as unknown as { tick(): Promise<void> }).tick();
+    }
+    assert.equal(epochCalls, 0, "per-wave mode must not consult mid-wave");
+  });
+
   it("keeps the epoch clock untouched when there is no strategist", async () => {
     const conn = fakeConn();
     const harness = new Harness(conn as never, new HeuristicPolicy(), { event: () => {} } as never, opts(), {}, null);

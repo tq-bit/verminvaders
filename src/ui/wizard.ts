@@ -59,14 +59,15 @@ export async function promptConfig(args: Args, rl: Questioner): Promise<Args> {
     args.maxGames,
     "games",
   );
-  const epochS = args.epochMs / 1000;
-  out.epochMs = Math.round(
-    parseFloatOr(
-      await rl.question(`Strategy epoch in seconds (${epochS}): `),
-      epochS,
-      "epoch",
-    ) * 1000,
-  );
+  // epoch: undefined = per-wave strategy (no mid-wave epoch updates)
+  const epochDefault = args.epochMs === undefined ? "per wave" : `${args.epochMs / 1000}`;
+  const rawEpoch = await rl.question(`Strategy epoch in seconds (${epochDefault}): `);
+  const t = rawEpoch.trim();
+  if (t) {
+    const n = Number(t);
+    if (Number.isFinite(n) && n > 0) out.epochMs = Math.round(n * 1000);
+    else console.error(c.yellow(`[harness] ignoring invalid epoch "${t}", keeping ${epochDefault}`));
+  } // empty answer keeps args.epochMs (possibly undefined = per wave)
   const styleDefault = args.style.trim() ? args.style : "none";
   out.style =
     (await rl.question(`Style directive for the model (${styleDefault}): `)).trim() || args.style;
@@ -77,7 +78,7 @@ export async function promptConfig(args: Args, rl: Questioner): Promise<Args> {
 
   console.log(
     c.blue(
-      `[harness] games=${out.maxGames} epoch=${out.epochMs / 1000}s style="${
+      `[harness] games=${out.maxGames} epoch=${out.epochMs === undefined ? "per wave" : `${out.epochMs / 1000}s`} style="${
         out.style.trim() ? out.style : "none"
       }" reasoning=${out.thinking ? "streamed" : "Strategizing indicator"}`,
     ),

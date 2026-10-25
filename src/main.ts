@@ -147,7 +147,7 @@ async function main(): Promise<void> {
     console.log(c.blue(`[harness] playing ${path.basename(args.gamePath)} at ${url}`));
     console.log(
       c.blue(
-        `[harness] mode=${opts.mode} poll=${opts.pollMs}ms games=${opts.maxGames} brain=${args.noLlm ? "local-executor" : `${args.model} @ ${opts.epochMs}ms epochs`}${args.style ? c.yellow(` style="${args.style}"`) : ""}`,
+        `[harness] mode=${opts.mode} poll=${opts.pollMs}ms games=${opts.maxGames} brain=${args.noLlm ? "local-executor" : `${args.model} @ ${opts.epochMs !== undefined ? `${opts.epochMs}ms epochs` : "per-wave strategy"}`}${args.style ? c.yellow(` style="${args.style}"`) : ""}`,
       ),
     );
     await harness.run();

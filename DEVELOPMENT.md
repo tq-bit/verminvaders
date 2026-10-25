@@ -28,7 +28,7 @@ latency can never cost a life.
 |---|---|---|---|
 | **Opening** | title screen, before game 1 of a session | `handleRestart` | `openingStrategy(s)` |
 | **Wave plan** | `playing → waveclear` transition, during the intermission banner | `handleWavePlan` | `wavePlan(s)` |
-| **Epoch update** | every `--epoch-ms` (default 10 s) of play | `updateStrategy` | `epochUpdate(s)` |
+| **Epoch update** | every `--epoch-ms` of play — **optional**; omitted = per-wave strategy (no mid-wave stops, the wave plan is the only mid-game consultation) | `updateStrategy` | `epochUpdate(s)` |
 | **Post-mortem** | `gameover` screen, once per finished game | `handleRestart` | `postMortem(s, n)` |
 
 The moments never double-fire at a wave boundary: the wave plan **resets the
