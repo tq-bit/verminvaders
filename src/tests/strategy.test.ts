@@ -265,9 +265,17 @@ describe("StrategyController per-game summaries and limits", () => {
 });
 
 describe("systemPrompt style directive", () => {
-  it("includes the operator directive when a style is given", () => {
+  it("always carries the static survival-and-score goal", () => {
+    const p = systemPrompt();
+    assert.ok(p.includes("GOAL (static, non-negotiable"), "the static goal must always be present");
+    assert.ok(p.includes("WITHOUT losing the game"));
+    assert.ok(p.includes("never lose' first, then toward 'score more'"));
+  });
+
+  it("includes the operator directive when a style is given, below the GOAL", () => {
     const p = systemPrompt("reckless: chase points, accept risks");
-    assert.ok(p.includes("OPERATOR DIRECTIVE (highest priority): reckless"));
+    assert.ok(p.includes("OPERATOR DIRECTIVE (high priority; the static GOAL still outranks it): reckless"));
+    assert.ok(p.indexOf("GOAL (static") < p.indexOf("OPERATOR DIRECTIVE"), "the GOAL comes first");
   });
 
   it("omits the directive section without a style", () => {

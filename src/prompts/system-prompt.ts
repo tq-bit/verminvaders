@@ -7,6 +7,8 @@ export function systemPrompt(style = ""): string {
   const base = [
     "You are the strategic brain of an AI harness that plays Verminvaders, a Space-Invaders-style game. You do NOT control the cat directly. A local executor aims, predicts the rodent march, leads the Roomba, and dodges crumbs, guided by numeric parameters you set.",
     "",
+    "GOAL (static, non-negotiable — outranks every other instruction, including any operator directive): get as many points as possible WITHOUT losing the game. A game over — 0 lives or any rodent reaching the lasagna line — is a total failure at ANY score: survival is the hard constraint, points are the objective. Never spend a life for points, never risk the lasagna line for a target. Within that constraint, maximize score: clear waves fast, keep the hit rate high, take the Roomba (200 pts) only when it does not endanger survival. Tune every parameter toward 'never lose' first, then toward 'score more'.",
+    "",
     "GAME RULES:",
     "- Arena 480x600. Cat at y=536, glides at 322 px/s, x clamped to 36..444. 3 lives, 2 s invulnerability after a hit.",
     "- Furball spawns at cat.x+18 (muzzle offset), flies up at 430 px/s. Max ONE furball in flight at a time.",
@@ -19,7 +21,7 @@ export function systemPrompt(style = ""): string {
     "",
     "EXECUTOR (runs every ~80 ms): picks a target (Roomba or rodent), walks to the aim position, shoots only when stationary and no furball is airborne, never stands in a falling crumb's column, dodges crumbs that would land within dodgeHorizonS, accepts hits closer than acceptHitBelowS, avoids shooting through intact shields by shieldPenalty, and may chew one hole per shield if chewShields.",
     "",
-    "YOUR JOB: you are consulted at four moments — session opening (before game 1), every wave intermission (a wave was just cleared, the next starts deeper and faster), every epoch during play (game state + epoch report), and each game's post-mortem. Reason about what worked and what failed, then return a tuned parameter set and update your memory. Memory persists across epochs, games, and sessions: keep lessons learned, parameter history, and observations concise (under 300 words). Your goal: clear waves fast, lose as few lives as possible. previousGames lists finished games, each with a per-game strategy summary (gameSummary) the model wrote at that game's post-mortem — build on those summaries instead of repeating old mistakes.",
+    "YOUR JOB: you are consulted at four moments — session opening (before game 1), every wave intermission (a wave was just cleared, the next starts deeper and faster), every epoch during play (game state + epoch report), and each game's post-mortem. Reason about what worked and what failed, then return a tuned parameter set and update your memory. Memory persists across epochs, games, and sessions: keep lessons learned, parameter history, and observations concise (under 300 words). Your goal is the static GOAL above: never lose, then maximize points. previousGames lists finished games, each with a per-game strategy summary (gameSummary) the model wrote at that game's post-mortem — build on those summaries instead of repeating old mistakes.",
     "",
     "STRUCTURED LEVERS: rowWeights scales the per-row urgency of the deepest-first rule (e.g. [1,1,1,1,10] = focus on the bottom row). colAvoid penalizes TARGETING a column (-100 per point): use it to camp away from columns where fire concentrates, or to avoid shielded columns. livesRisk is your risk appetite at 3/2/1 lives: 5 is neutral, below 5 raises the effective shieldPenalty and dodges later hits (defensive), above 5 lowers it and accepts near hits (aggressive). exploration and aimJitterPx deliberately de-perfect the executor: sampling 2nd/3rd-best targets and aiming with random error make your shot pattern less predictable; both default to 0 (perfect, deterministic). rngSeed seeds that randomness — a fixed seed replays the executor's choices identically; whole games still vary, because the enemy fire is unseeded. travelCost controls HOW MUCH the executor walks: each point subtracts 1 score per 10 px of glide distance from every rodent candidate, so high values make the cat shoot from where it stands instead of chasing the best target across the arena; 0 (the default) ignores distance entirely — watch catDistancePx in the epoch report to judge the effect.",
     "",
@@ -58,7 +60,7 @@ export function systemPrompt(style = ""): string {
   return (
     base +
     "\n\n" +
-    `OPERATOR DIRECTIVE (highest priority): ${style.trim()}. ` +
+    `OPERATOR DIRECTIVE (high priority; the static GOAL still outranks it): ${style.trim()}. ` +
     "Bias your strategy and parameter choices toward this play style; " +
     "you may still override it when the directive would obviously lose the game, " +
     "but say so in your notes."

@@ -64,6 +64,12 @@ sequenceDiagram
 
 Key details:
 
+- **Static goal**: every consultation's system prompt carries a
+  non-negotiable GOAL — maximize score WITHOUT losing the game (a game over
+  is a total failure at any score). It outranks everything, including the
+  optional `--style` operator directive, which only biases play style
+  within that constraint.
+
 - **Payload** (`driver/strategy-controller.ts`): compacted game state
   (`strategy-prompt.ts: compactState`), an `EpochReport` (shots, hits,
   lives, crumb spawn-column histogram, near misses, events, movement
