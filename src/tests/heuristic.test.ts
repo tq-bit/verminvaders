@@ -200,6 +200,58 @@ describe("HeuristicPolicy seeded randomness", () => {
   });
 });
 
+describe("HeuristicPolicy dodge commitment", () => {
+  // tti ≈ 0.30 s: urgent enough to dodge, slower than the accept threshold
+  const crumb = { x: 235, y: 449, w: 10, h: 10, vy: 144 };
+  const catAt = (x: number) => ({ ...makeState().cat, x });
+
+  it("keeps the committed destination through the invuln window", () => {
+    const p = freshPolicy();
+    const d1 = p.decide(makeState({ crumbs: [crumb] }));
+    assert.ok(d1.moveTo !== undefined, "must dodge");
+    const target = d1.moveTo as number;
+    // the crumb hit: invulnerable mid-dodge, the threat is still on screen
+    const d2 = p.decide(
+      makeState({ crumbs: [{ ...crumb, y: 470 }], invuln: 1.5, cat: catAt(220) }),
+    );
+    assert.equal(d2.moveTo, target);
+    assert.equal(p.lastReason, "dodge");
+  });
+
+  it("finishes the committed dodge even when the accept-cutoff would abort", () => {
+    const p = freshPolicy();
+    const d1 = p.decide(makeState({ crumbs: [crumb] }));
+    assert.ok(d1.moveTo !== undefined);
+    // tti is now 0 (below acceptHitBelowS) but the committed spot is safe
+    const d2 = p.decide(makeState({ crumbs: [{ ...crumb, y: 492 }] }));
+    assert.equal(d2.moveTo, d1.moveTo);
+    assert.equal(p.lastReason, "dodge");
+  });
+
+  it("re-plans when the committed destination becomes unsafe", () => {
+    const p = freshPolicy();
+    const d1 = p.decide(makeState({ crumbs: [crumb] }));
+    assert.ok(d1.moveTo !== undefined);
+    const target = d1.moveTo as number;
+    // a second crumb lands right on the committed corridor
+    const onTarget = { x: target < 240 ? target - 20 : target + 20, y: 449, w: 10, h: 10, vy: 144 };
+    const d2 = p.decide(makeState({ crumbs: [crumb, onTarget] }));
+    assert.ok(d2.moveTo !== undefined);
+    assert.notEqual(d2.moveTo, target); // abandoned the old spot
+    assert.equal(p.lastReason, "dodge");
+  });
+
+  it("releases the commitment once the threat clears", () => {
+    const p = freshPolicy();
+    p.decide(makeState({ crumbs: [crumb] })); // commit
+    p.decide(makeState({ crumbs: [] })); // threat gone: aim, release
+    // the same threat again must match a fresh policy (no stale commitment)
+    const d2 = p.decide(makeState({ crumbs: [crumb] }));
+    const fresh = new HeuristicPolicy().decide(makeState({ crumbs: [crumb] }));
+    assert.equal(d2.moveTo, fresh.moveTo);
+  });
+});
+
 describe("HeuristicPolicy wave reset", () => {
   it("clears chewed holes on a new wave", () => {
     const p = freshPolicy();

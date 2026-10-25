@@ -19,6 +19,13 @@ export interface EpochReport {
   crumbSpawnCols: number[];
   nearMisses: number;
   events: string[];
+  // movement telemetry: how the cat actually moved this epoch
+  /** total horizontal distance glided, in px */
+  catDistancePx: number;
+  /** reversals of glide direction (left↔right) beyond CAT_DIR_EPS_PX */
+  catDirectionChanges: number;
+  /** tick census per executor decision reason (dodge, reposition, ...) */
+  decisionReasons: Record<string, number>;
 }
 
 export interface StrategyResponse {

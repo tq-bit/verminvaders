@@ -12,7 +12,7 @@ import {
   normalizeParams,
   parseStrategyResponse,
 } from "../driver/strategy-params.ts";
-import { systemPrompt } from "../driver/strategy-prompt.ts";
+import { systemPrompt } from "../prompts/system-prompt.ts";
 import { StrategyController } from "../driver/strategy-controller.ts";
 import type { MistralClient } from "../llm/mistral-client.ts";
 import { HeuristicPolicy } from "../policy/heuristic.ts";
@@ -218,6 +218,27 @@ describe("StrategyController per-game summaries and limits", () => {
     assert.ok(fake.lastPayload.includes('"wave":3'), "the state must be sent");
     await rm(tmpFile, { force: true });
   });
+
+  it("dumps the raw response to diagnostic.txt when parsing fails", async () => {
+    const dir = path.join(os.tmpdir(), `vv-diag-test-${process.pid}`);
+    await rm(dir, { recursive: true, force: true });
+    const fake = new FakeClient();
+    fake.answer = "I refuse to answer in JSON.";
+    const errors: string[] = [];
+    const ctrl = new StrategyController(
+      fake as unknown as MistralClient,
+      path.join(dir, "memory.json"),
+      { onLlmError: (m) => errors.push(m) },
+    );
+    await ctrl.load();
+    const params = await ctrl.openingStrategy(makeState());
+    assert.equal(params, null); // parse failure keeps the current params
+    assert.ok(errors.some((m) => m.includes("unparseable")));
+    const diag = await readFile(path.join(dir, "diagnostic.txt"), "utf-8");
+    assert.ok(diag.includes("I refuse to answer in JSON."), "the raw response must be dumped");
+    assert.ok(diag.includes("unparseable strategy response:"), "entries must be timestamped and labeled");
+    await rm(dir, { recursive: true, force: true });
+  });
 });
 
 describe("systemPrompt style directive", () => {
@@ -247,6 +268,23 @@ describe("EpochTracker", () => {
     assert.equal(report.hits, 1);
     assert.equal(report.livesEnd, 2);
     assert.ok(report.events.some((e) => e.includes("life lost")));
+  });
+
+  it("tracks glide distance, direction reversals and decision reasons", () => {
+    const t = new EpochTracker();
+    const base = makeState();
+    t.reset(base, Date.now());
+    const at = (x: number) => makeState({ cat: { ...base.cat, x } });
+    const x0 = base.cat.x; // 240
+    // right 20, right 20 (no reversal), left 30 (reversal), +2 wiggle (ignored)
+    t.observe(base, at(x0 + 20), "reposition");
+    t.observe(at(x0 + 20), at(x0 + 40), "shoot-rodent");
+    t.observe(at(x0 + 40), at(x0 + 10), "dodge");
+    t.observe(at(x0 + 10), at(x0 + 12), "dodge");
+    const report = t.report(at(x0 + 12), Date.now());
+    assert.equal(report.catDistancePx, 72);
+    assert.equal(report.catDirectionChanges, 1);
+    assert.deepEqual(report.decisionReasons, { reposition: 1, "shoot-rodent": 1, dodge: 2 });
   });
 
   it("flags an unintercepted roomba", () => {

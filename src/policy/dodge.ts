@@ -39,24 +39,46 @@ function absorbedByShield(s: GameState, c: Crumb): boolean {
   return false;
 }
 
-// Nearest x the cat can glide to that no threatening crumb will reach.
+// Every crumb still above the cat band that is not absorbed by a shield —
+// the hazard set for destination validation. Unlike threateningCrumbs this
+// ignores where the cat stands: a destination corridor is unsafe no matter
+// how far away its crumb spawned.
+export function fallingCrumbs(s: GameState): Crumb[] {
+  return s.crumbs.filter((c) => c.y < CAT_Y && !absorbedByShield(s, c));
+}
+
+// x-corridor overlap between a crumb and a candidate standing position;
+// shared by the candidate search and the commitment re-validation so both
+// use the exact same criterion.
+function corridorOverlap(c: Crumb, x: number): boolean {
+  return c.x + c.w > x - CAT_HALF_WIDTH - 4 && c.x < x + CAT_HALF_WIDTH + 4;
+}
+
+// Re-validation of a committed dodge destination (hysteresis): the spot stays
+// valid while no falling crumb will sweep the cat band over it after the cat
+// arrives. Same overlap margins as findSafeX, so a spot chosen as safe never
+// flips unsafe merely because the cat moved along its path.
+export function isSafeSpot(s: GameState, x: number, crumbs: Crumb[]): boolean {
+  const arrive = Math.abs(x - s.cat.x) / CAT_GLIDE_SPEED;
+  for (const c of crumbs) {
+    if (corridorOverlap(c, x) && c.y + c.vy * arrive < CAT_Y) return false;
+  }
+  return true;
+}
+
+// Nearest x the cat can glide to that no falling crumb will reach.
 // Checks each crumb's position at the cat's arrival time.
-export function findSafeX(s: GameState, threats: Threat[]): number | null {
-  const real = threats.filter((t) => !absorbedByShield(s, t.crumb));
-  if (!real.length) return null;
+export function findSafeX(s: GameState, crumbs: Crumb[]): number | null {
+  if (!crumbs.length) return null;
   const candidates: Array<{ x: number; dist: number }> = [];
   for (let x = CAT_MIN_X; x <= CAT_MAX_X; x += 8) {
     const arrive = Math.abs(x - s.cat.x) / CAT_GLIDE_SPEED;
     let safe = true;
-    for (const t of real) {
-      const cy = t.crumb.y + t.crumb.vy * arrive;
+    for (const c of crumbs) {
+      const cy = c.y + c.vy * arrive;
       // the cat parks at x: any crumb that has not yet fallen past the hit
       // band (cy < CAT_Y) and overlaps the candidate corridor will hit later
-      const notYetPast = cy < CAT_Y;
-      const overlap =
-        t.crumb.x + t.crumb.w > x - CAT_HALF_WIDTH - 4 &&
-        t.crumb.x < x + CAT_HALF_WIDTH + 4;
-      if (notYetPast && overlap) {
+      if (cy < CAT_Y && corridorOverlap(c, x)) {
         safe = false;
         break;
       }
@@ -69,7 +91,9 @@ export function findSafeX(s: GameState, threats: Threat[]): number | null {
 }
 
 // Dodge plan: glide to the nearest safe corridor when there is time; below
-// the accept-threshold take the hit (spec section 6).
+// the accept-threshold take the hit (spec section 6). The destination is
+// validated against ALL falling crumbs, not only those threatening the cat
+// right now — dodging one crumb into another's corridor must not happen.
 export function planDodge(s: GameState, p: DodgeParams = DEFAULT_DODGE_PARAMS): number | null {
   const threats = threateningCrumbs(s, p.horizonS);
   if (!threats.length) return null;
@@ -78,5 +102,5 @@ export function planDodge(s: GameState, p: DodgeParams = DEFAULT_DODGE_PARAMS): 
     .sort((a, b) => a.tti - b.tti)[0];
   if (!urgent) return null;
   if (urgent.tti <= p.acceptBelowS) return null; // too late, accept the hit
-  return findSafeX(s, threats);
+  return findSafeX(s, fallingCrumbs(s));
 }

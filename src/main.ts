@@ -63,8 +63,8 @@ async function main(): Promise<void> {
   }
 
   const conn = new Connection(page);
-  // env-seeded executor RNG: same seed replays the same play (the model may
-  // still retune rngSeed in its strategy answers)
+  // env-seeded executor RNG: the same seed replays the same executor
+  // choices (the model may still retune rngSeed in its strategy answers)
   const policy = new HeuristicPolicy({ rngSeed: intEnv("VERMINVADERS_RNG_SEED", 0) });
   const opts: RunOptions = {
     mode: args.mode,

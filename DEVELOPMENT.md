@@ -57,9 +57,9 @@ Key details:
 
 - **Payload** (`driver/strategy-controller.ts`): compacted game state
   (`strategy-prompt.ts: compactState`), an `EpochReport` (shots, hits,
-  lives, crumb spawn-column histogram, near misses, events — built by
-  `epoch-tracker.ts`), the persistent `memory` object, and the last
-  `VERMINVADERS_CONTEXT_GAMES` game summaries.
+  lives, crumb spawn-column histogram, near misses, events, movement
+  telemetry — built by `epoch-tracker.ts`), the persistent `memory`
+  object, and the last `VERMINVADERS_CONTEXT_GAMES` game summaries.
 - **Strict schema enforcement**: every call sends the response contract in
   [`src/driver/strategy-response.schema.json`](src/driver/strategy-response.schema.json)
   via the API's structured-output mode
@@ -73,7 +73,8 @@ Key details:
   and `gameSummary`. Even with schema enforcement, `parseStrategyResponse`
   keeps the prose-wrapped fallback and unparseable answers still keep the
   current params and log an error — a bad model answer can never break
-  the run.
+  the run. When parsing fails, the raw model answer is appended (with a
+  timestamp) to `memory/diagnostic.txt` for offline inspection.
 - **Normalization** (`driver/strategy-params.ts`): every scalar is
   clamped to its legal range; `rowWeights`/`colAvoid`/`livesRisk` are
   padded, clamped and truncated to their fixed lengths. Garbage falls
@@ -96,9 +97,9 @@ wins and produces the `Decision` sent to the game bridge.
 flowchart TD
     A["decide(state)"] --> P{"phase === playing?"}
     P -- "no" --> Z1["return empty decision"]
-    P -- "yes" --> D["planDodge: any crumb threatening the cat<br/>within dodgeHorizonS?"]
-    D -- "yes, tti above accept threshold" --> Z2["moveTo nearest safe x<br/>reason: dodge"]
-    D -- "no / accepted hit" --> R["planShot: roombaFirst?"]
+    P -- "yes" --> D{"threatening crumb within dodgeHorizonS?<br/>committed destination kept while safe (hysteresis)"}
+    D -- "yes (or committed dodge still safe)" --> Z2["moveTo committed / nearest safe x<br/>reason: dodge"]
+    D -- "no threat, nothing committed" --> R["planShot: roombaFirst?"]
     R -- "roomba interceptable" --> S["planRoomba: lead target ~103px, skip hot spots"]
     R -- "otherwise" --> G["planRodent: score every rodent"]
 
@@ -171,9 +172,12 @@ point: risk 0 doubles the effective `shieldPenalty` and halves
 
 ## 3. The RNG and its impact
 
-The executor is deterministic by default. All randomness flows through one
-seeded generator (`policy/rng.ts`, mulberry32), so identical seeds replay
-identical games — exploration and jitter stay testable and debuggable.
+The executor is deterministic by default. All of *its* randomness flows
+through one seeded generator (`policy/rng.ts`, mulberry32), so identical
+seeds replay identical **executor decisions** — exploration and jitter
+stay testable and debuggable. Whole games are *not* reproducible: the
+rodents fire with the game's own unseeded `Math.random`, so crumb spawns
+differ run to run regardless of the seed.
 
 ```mermaid
 flowchart LR
@@ -214,8 +218,9 @@ Impact summary:
   in its next epoch report and can retune.
 - **Seeds**: the initial seed comes from the environment; Mistral can
   change it in any strategy answer (last writer wins). `policy.reset()`
-  reseeds at every game start, so game N replays identically for a fixed
-  seed.
+  reseeds at every game start, so a fixed seed replays the executor's
+  choices identically — though games still differ, because the enemy
+  fire is unseeded.
 
 ## 4. How it all works together
 
@@ -273,25 +278,116 @@ record, retunes the weights, and the executor plays differently.**
   (`exploration`, `aimJitterPx`, `rngSeed`), the executor applies it
   locally and deterministically.
 
-## Known behavior: decision flapping near thresholds
+## The dodge jitter (decision flapping) — analyzed and fixed
 
-The executor re-decides from scratch every tick with no commitment, and
-dodge safety is evaluated at the cat's arrival time — so when crumbs are
-dense, the chosen safe spot can flip sides tick to tick and the cat
-gaits left-right-left. This is **accepted current behavior** (see
-`planDodge`/`findSafeX` in `policy/dodge.ts`), not a bug: it emerges from
-the nearest-safe-candidate search plus threshold crossings
-(`dodgeHorizonS`, `SHIELD_Y + 20`, invuln windows). If it ever needs
-fixing, the approaches are: commit to a dodge destination while it stays
-safe (hysteresis), evaluate `findSafeX` with a fixed arrival horizon, and
-re-sample exploration targets per shot instead of per tick.
+**The symptom.** When a crumb is close, the cat often gaits
+left-right-left-right instead of gliding smoothly to a safe spot.
+
+**The original mechanism — four interacting causes:**
+
+1. **No commitment**: `decide()` re-ran the nearest-safe-spot argmin from
+   scratch every ~80 ms; a new argmin meant an instant retarget.
+2. **Priority flapping**: the dodge/aim branch switched on/off at hard
+   thresholds (`dodgeHorizonS`, `SHIELD_Y + 20`, invuln, `acceptBelowS`),
+   and every switch-off reverted the cat to its aim point on the other
+   side of the arena.
+3. **No hysteresis in the safety criterion**: borderline candidates
+   flipped tick to tick (8 px grid, ±4 px slop, EMA latency compensation).
+4. **The exploration/jitter levers** re-sample the aim endpoint every
+   tick when Mistral sets them (still true, by design).
+
+**The fix** (`policy/heuristic.ts: planDodgeCommitted`,
+`policy/dodge.ts: isSafeSpot`, commit `dodgeTarget`):
+
+- Once a dodge destination is chosen, the policy **commits** to it and
+  only re-plans when the committed spot *actually becomes unsafe* —
+  re-validated with the exact same criterion that selected it
+  (`isSafeSpot`), so a spot never flips "unsafe" merely because the cat
+  moved along its path.
+- The commitment **survives the invuln window** and the
+  **accept-the-hit cutoff**: abandoning a half-finished dodge is worse
+  than finishing it.
+- The commitment is **released** when no crumb threatens the cat anymore
+  (fall back to aiming) and on every wave change / game reset.
+- Safety hole fixed alongside: `findSafeX` and `isSafeSpot` now validate
+  against **all** falling crumbs (`fallingCrumbs`), not just those
+  overlapping the cat — dodging one crumb into another's corridor can no
+  longer happen.
+
+Residual behavior: the aim endpoint still re-samples per tick when
+`exploration`/`aimJitterPx` are nonzero (model's choice), and the
+dodge→aim switch when a threat legitimately clears is by design. The
+movement telemetry (`catDirectionChanges`) in every epoch report
+verifies the fix: reversal counts under dense fire should drop sharply —
+and Mistral can now observe that too.
+
+## Thesis: can the strategist figure the jitter out?
+
+**Thesis statement.** *With the current epoch telemetry, the strategist
+can detect the jitter's **symptoms** but not its **mechanism** — and
+therefore cannot reliably diagnose decision flapping as the cause. Only
+movement telemetry added to the `EpochReport` would make the mechanism
+identifiable.*
+
+**What the model actually sees** (per epoch, `driver/epoch-tracker.ts`):
+
+| Observable | Visible | Jitter signal? |
+|---|---|---|
+| shots / hits / hit rate | yes | indirect: dodging steals shooting time |
+| `crumbsFired`, `crumbSpawnCols` | yes | context: fire density correlates with flapping |
+| `nearMisses` (crumbs passing 30–60 px from the cat) | yes | indirect: flapping lives near misses |
+| life-loss events with cat x | yes | indirect: where flapping ended badly |
+| `catDistancePx` (glide distance) | yes *(added)* | distance traveled vs. net progress |
+| `catDirectionChanges` (reversals) | yes *(added)* | the direct symptom: left↔right flapping |
+| `decisionReasons` (per-tick reason census) | yes *(added)* | time-in-dodge vs. time-aiming |
+| aim/exploration choices per tick | **no** | only the params that control them |
+
+The memory structure itself is not the bottleneck — it is free-form and
+persistent, so the model *could* hold a hypothesis like "I suspect the
+executor wastes time repositioning under dense fire" indefinitely. The
+bottleneck is that no field in any report can confirm, refute or refine
+that hypothesis: the left-right-left gait never appears in the data.
+The best the model can do today is correlate "low hit rate in epochs
+with many crumbs" — which is also consistent with plain bad luck,
+shield erosion, or its own parameter choices.
+
+**Falsifiable experiment** to check the thesis:
+
+1. **Baseline arm**: run ≥ 5 sessions unchanged. Classify every strategy
+   answer's `notes` (rubric: mentions movement/positioning problem,
+   mentions fire/statistics, no diagnosis). Prediction under the thesis:
+   near-zero mechanism mentions, some symptom mentions.
+2. **Forcing arm**: same runs with an operator directive to "investigate
+   why shooting output drops when crumbs are dense". Prediction: the
+   model produces symptom-level explanations, not flapping, and its
+   param responses (`dodgeHorizonS`, `acceptHitBelowS`) drift as blind
+   mitigation.
+3. **Telemetry arm** *(now implemented)*: `EpochTracker.observe` records
+   `catDistancePx`, `catDirectionChanges` (reversals beyond
+   `CAT_DIR_EPS_PX` so brief pauses do not count) and a per-tick
+   `decisionReasons` census; the driver feeds the executor's `lastReason`
+   into every sample. Prediction to verify: with these in the report, the
+   model identifies erratic movement and *reasons about its params as
+   causes* (e.g. noticing high dodge census correlates with high
+   `dodgeHorizonS`).
+
+**Verdict: can the model possibly figure it out?** Before the telemetry:
+only by accident — it could notice the symptoms (hit-rate collapse under
+fire, elevated near misses) and stumble into param-based *mitigation*
+(lower `dodgeHorizonS`, higher `acceptHitBelowS`/`corridorMarginPx` all
+shrink the reactive-dodge window) without ever naming the cause. With
+the telemetry now in every epoch report, the mechanism itself is
+observable: many direction reversals with low net progress and a fat
+`dodge` census is exactly what decision flapping looks like in data.
+The open question has moved from "can it see the jitter?" (it now can)
+to "will it use it?" — run the three arms above to find out.
 
 ## File map
 
 | Area | Files |
 |---|---|
 | Executor | `src/policy/heuristic.ts` (pipeline), `aim.ts`, `dodge.ts`, `hot-corridors.ts`, `rng.ts` |
-| Strategy integration | `src/driver/strategy-controller.ts`, `strategy-prompt.ts`, `strategy-params.ts`, `strategy-response.schema.json` (strict API contract), `epoch-tracker.ts` |
+| Strategy integration | `src/driver/strategy-controller.ts`, `src/prompts/system-prompt.ts` (the model-facing system prompt), `strategy-prompt.ts` (state compaction), `strategy-params.ts`, `strategy-response.schema.json` (strict API contract), `epoch-tracker.ts` |
 | Orchestration | `src/driver/driver.ts` (tick loop, phases, consultation moments), `connection.ts` (Playwright bridge), `stats.ts` |
 | Entry point | `src/main.ts` (wiring, env, callbacks) |
 | Config | `src/constants/policy.ts` (defaults), `src/.env` (seed, limits, API key), `src/ui/cli.ts` (flags) |

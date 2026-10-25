@@ -3,7 +3,7 @@
 // tuned executor params plus an updated memory object. Post-mortems write a
 // per-game strategy summary and clean up the memory.
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,7 +18,8 @@ import type {
 } from "../types/index.d.ts";
 import type { MistralClient } from "../llm/mistral-client.ts";
 import { DEFAULT_STRATEGY_LIMITS } from "../constants/index.ts";
-import { compactState, systemPrompt } from "./strategy-prompt.ts";
+import { compactState } from "./strategy-prompt.ts";
+import { systemPrompt } from "../prompts/system-prompt.ts";
 import { normalizeParams, parseStrategyResponse } from "./strategy-params.ts";
 import { EpochTracker } from "./epoch-tracker.ts";
 
@@ -199,7 +200,10 @@ export class StrategyController {
       );
       const resp = parseStrategyResponse(text);
       if (!resp) {
-        this.cb.onLlmError?.("model returned unparseable JSON; keeping current params");
+        await this.writeDiagnostics(text);
+        this.cb.onLlmError?.(
+          "model returned unparseable JSON; keeping current params; raw response dumped to diagnostic.txt",
+        );
         return null;
       }
       const params = normalizeParams(resp.params);
@@ -214,6 +218,18 @@ export class StrategyController {
       return null;
     } finally {
       this.cb.onThinkingEnd?.();
+    }
+  }
+
+  // Dump an unparseable model answer for offline inspection: appended to
+  // diagnostic.txt next to the memory file, one timestamped entry per failure.
+  private async writeDiagnostics(text: string): Promise<void> {
+    const file = path.join(path.dirname(this.memoryPath), "diagnostic.txt");
+    try {
+      await mkdir(path.dirname(file), { recursive: true });
+      await appendFile(file, `[${new Date().toISOString()}] unparseable strategy response:\n${text}\n\n`);
+    } catch (e) {
+      this.cb.onLlmError?.(`diagnostic write failed: ${(e as Error).message}`);
     }
   }
 

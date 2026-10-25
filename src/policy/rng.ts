@@ -1,6 +1,7 @@
 // Deterministic seeded RNG (mulberry32): reproducible executor randomness —
-// identical seeds replay identical games, so exploration and jitter stay
-// testable and debuggable.
+// identical seeds replay identical executor decisions (games still vary:
+// the enemy fires with its own unseeded Math.random), so exploration and
+// jitter stay testable and debuggable.
 
 export function mulberry32(seed: number): () => number {
   // scramble zero/negative seeds so every seed yields a distinct stream

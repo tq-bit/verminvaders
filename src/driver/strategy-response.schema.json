@@ -40,7 +40,7 @@
         },
         "exploration": { "type": "number", "description": "0..10, probability weight for picking 2nd/3rd-best target" },
         "aimJitterPx": { "type": "number", "description": "0..10, seeded random aim error in px" },
-        "rngSeed": { "type": "number", "description": "seed for the executor RNG; keep it to replay, change it to vary play" }
+        "rngSeed": { "type": "number", "description": "seed for the executor RNG; a fixed seed replays the executor's choices identically (games still vary, the enemy fire is unseeded)" }
       },
       "required": [
         "roombaFirst",

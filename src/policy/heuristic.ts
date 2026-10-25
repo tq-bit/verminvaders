@@ -16,7 +16,7 @@ import {
   glideTime,
   predictFormationX,
 } from "./aim.ts";
-import { planDodge, threateningCrumbs } from "./dodge.ts";
+import { fallingCrumbs, isSafeSpot, planDodge, threateningCrumbs } from "./dodge.ts";
 import { hotCorridors, inHot } from "./hot-corridors.ts";
 import { mulberry32 } from "./rng.ts";
 
@@ -39,6 +39,8 @@ export class HeuristicPolicy implements Policy {
   // x positions where we intentionally chewed a shield hole this wave
   private holes: number[] = [];
   private wave = 0;
+  // committed dodge destination (hysteresis): kept while it stays safe
+  private dodgeTarget: number | null = null;
   // seeded stream for exploration sampling and aim jitter
   private rng: () => number = mulberry32(0);
   // for observability: why the last decision was what it was
@@ -60,8 +62,9 @@ export class HeuristicPolicy implements Policy {
   reset(): void {
     this.holes = [];
     this.wave = 0;
+    this.dodgeTarget = null;
     this.lastReason = "";
-    // fresh stream per game: the same seed replays the same game
+    // fresh stream per game: the same seed replays the same choices
     this.rng = mulberry32(this.params.rngSeed);
   }
 
@@ -70,17 +73,17 @@ export class HeuristicPolicy implements Policy {
     if (s.wave !== this.wave) {
       this.wave = s.wave;
       this.holes = [];
+      this.dodgeTarget = null;
     }
 
-    // 1. dodging wins over aiming: a saved life buys future shots
-    const dodgeX = planDodge(s, {
-      horizonS: this.params.dodgeHorizonS,
-      acceptBelowS: effectiveAcceptBelowS(this.params, s.lives),
-    });
+    // 1. dodging wins over aiming: a saved life buys future shots. The
+    // committed destination (hysteresis) is what stops the left-right gait.
+    const dodgeX = this.planDodgeCommitted(s);
     if (dodgeX !== null) {
       this.lastReason = "dodge";
       return { moveTo: dodgeX };
     }
+    this.dodgeTarget = null;
 
     // 2. plan the best shot (Roomba first, then rodents)
     const plan = this.planShot(s);
@@ -122,6 +125,33 @@ export class HeuristicPolicy implements Policy {
       this.lastReason = "reposition";
     }
     return decision;
+  }
+
+  // Dodge with commitment (anti-jitter hysteresis): once a safe destination
+  // is chosen, keep it until it actually becomes unsafe — re-validated with
+  // the same criterion that selected it. The commitment survives the invuln
+  // window and the accept-the-hit cutoff: abandoning a half-finished dodge
+  // is worse than finishing it. Cleared by decide() when nothing threatens.
+  private planDodgeCommitted(s: GameState): number | null {
+    const threats = threateningCrumbs(s, this.params.dodgeHorizonS);
+    // mid-dodge: keep the committed destination while it stays safe from ALL
+    // falling crumbs. Hysteresis — survives threat-set churn, the invuln
+    // window and the accept-the-hit cutoff; abandoning a half-finished
+    // dodge is worse than finishing it.
+    if (this.dodgeTarget !== null && (threats.length > 0 || s.invuln > 0)) {
+      if (isSafeSpot(s, this.dodgeTarget, fallingCrumbs(s))) {
+        return clampCatX(this.dodgeTarget);
+      }
+    }
+    if (!threats.length || s.invuln > 0) {
+      return null; // nothing threatens, or invulnerable with nothing to finish
+    }
+    const fresh = planDodge(s, {
+      horizonS: this.params.dodgeHorizonS,
+      acceptBelowS: effectiveAcceptBelowS(this.params, s.lives),
+    });
+    this.dodgeTarget = fresh;
+    return fresh;
   }
 
   planShot(s: GameState): ShotPlan | null {

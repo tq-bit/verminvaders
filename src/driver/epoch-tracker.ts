@@ -2,7 +2,7 @@
 // crumb firing statistics, near misses and notable events.
 
 import type { EpochReport, GameState } from "../types/index.d.ts";
-import { CAT_HALF_WIDTH } from "../constants/index.ts";
+import { CAT_DIR_EPS_PX, CAT_HALF_WIDTH } from "../constants/index.ts";
 
 export class EpochTracker {
   private epoch = 0;
@@ -18,6 +18,11 @@ export class EpochTracker {
   private crumbSpawnCols: number[] = [];
   private nearMisses = 0;
   private nearMissSeen = new Set<number>();
+  // movement telemetry: glide distance, direction reversals, reason census
+  private catDistancePx = 0;
+  private catDirectionChanges = 0;
+  private lastDir = 0;
+  private decisionReasons: Record<string, number> = {};
 
   reset(s: GameState, now: number): void {
     this.epoch++;
@@ -33,17 +38,23 @@ export class EpochTracker {
     this.crumbSpawnCols = new Array<number>(s.formation.cols).fill(0);
     this.nearMisses = 0;
     this.nearMissSeen.clear();
+    this.catDistancePx = 0;
+    this.catDirectionChanges = 0;
+    this.lastDir = 0;
+    this.decisionReasons = {};
   }
 
   noteShot(): void {
     this.shots++;
   }
 
-  observe(prev: GameState, s: GameState): void {
+  observe(prev: GameState, s: GameState, reason = ""): void {
     if (s.score > prev.score) {
       this.hits++;
       if (s.score - prev.score >= 200) this.roombaHits++;
     }
+    this.observeMovement(prev, s);
+    if (reason) this.decisionReasons[reason] = (this.decisionReasons[reason] ?? 0) + 1;
     if (s.lives < prev.lives) {
       this.events.push(`life lost (crumb) while cat near x=${Math.round(s.cat.x)}, wave ${s.wave}, ${s.rods.length} rodents left`);
     }
@@ -55,6 +66,19 @@ export class EpochTracker {
     }
     this.observeCrumbFire(prev, s);
     this.roombaWasPresent = s.roomba !== null;
+  }
+
+  // Movement telemetry: glide distance and direction reversals. Deltas
+  // below CAT_DIR_EPS_PX count as standing still, so the direction memory
+  // survives brief pauses without spuriously counting reversals.
+  private observeMovement(prev: GameState, s: GameState): void {
+    const dx = s.cat.x - prev.cat.x;
+    this.catDistancePx += Math.abs(dx);
+    if (Math.abs(dx) >= CAT_DIR_EPS_PX) {
+      const dir = dx > 0 ? 1 : -1;
+      if (this.lastDir !== 0 && dir !== this.lastDir) this.catDirectionChanges++;
+      this.lastDir = dir;
+    }
   }
 
   // New crumbs = present in s but not in prev. Crumb x never changes (they
@@ -106,6 +130,9 @@ export class EpochTracker {
       crumbSpawnCols: [...this.crumbSpawnCols],
       nearMisses: this.nearMisses,
       events: this.events,
+      catDistancePx: Math.round(this.catDistancePx),
+      catDirectionChanges: this.catDirectionChanges,
+      decisionReasons: { ...this.decisionReasons },
     };
   }
 }

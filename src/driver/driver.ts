@@ -214,7 +214,7 @@ export class Harness {
     const prev = this.prevState;
 
     if (prev) {
-      this.strategy?.tracker.observe(prev, s);
+      this.strategy?.tracker.observe(prev, s, this.policyReason());
       if (s.score > prev.score) this.stats.noteHit(s.score - prev.score);
       if (s.lives < prev.lives) {
         this.stats.noteLifeLost();
