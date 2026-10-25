@@ -4,7 +4,9 @@
 // per-game strategy summary and clean up the memory.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   ExecutorParams,
   GameRecord,
@@ -31,6 +33,23 @@ export class StrategyController {
   private limits: StrategyLimits;
 
   private style: string;
+
+  // strict response schema (strategy-response.schema.json), loaded once;
+  // null if the file is unreadable → falls back to plain JSON mode
+  private schema: Record<string, unknown> | null | undefined;
+
+  private loadSchema(): Record<string, unknown> | null {
+    if (this.schema === undefined) {
+      try {
+        this.schema = JSON.parse(
+          readFileSync(fileURLToPath(new URL("./strategy-response.schema.json", import.meta.url)), "utf-8"),
+        ) as Record<string, unknown>;
+      } catch {
+        this.schema = null;
+      }
+    }
+    return this.schema;
+  }
 
   constructor(
     client: MistralClient,
@@ -167,9 +186,13 @@ export class StrategyController {
       { role: "user", content: `${instruction}\n\n${JSON.stringify(payload)}` },
     ] as Array<{ role: "system" | "user" | "assistant"; content: string }>;
     try {
+      const schema = this.loadSchema();
       const text = await this.client.chat(
         messages,
-        { json: true, maxTokens: 8000 },
+        {
+          ...(schema ? { responseSchema: schema } : { json: true }),
+          maxTokens: 8000,
+        },
         (kind, delta) => {
           if (kind === "thinking") this.cb.onThinkingDelta?.(delta);
         },

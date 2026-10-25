@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Verminvaders strategy response",
+  "description": "The answer the strategic brain (Mistral) must return at every consultation: opening, wave plan, epoch update and post-mortem. Enforced by the API in strict json_schema mode; ranges are clamped again locally by normalizeParams.",
+  "type": "object",
+  "properties": {
+    "params": {
+      "type": "object",
+      "description": "The executor weights. Send every field on every answer; out-of-range values are clamped locally.",
+      "properties": {
+        "roombaFirst": { "type": "boolean", "description": "chase the Roomba before rodents" },
+        "lowestRowWeight": { "type": "number", "description": "0..10, urgency of deep rodents" },
+        "pointsWeight": { "type": "number", "description": "0..10, how much rodent points matter" },
+        "shieldPenalty": { "type": "number", "description": "0..5000, avoidance of shielded corridors" },
+        "chewShields": { "type": "boolean", "description": "allow one deliberate hole per shield" },
+        "dodgeHorizonS": { "type": "number", "description": "0.3..1.6, react to crumbs landing within this window" },
+        "acceptHitBelowS": { "type": "number", "description": "0.05..0.5, stop dodging when impact is nearer" },
+        "corridorMarginPx": { "type": "number", "description": "4..20, safety margin from crumb columns" },
+        "columnSpreadWeight": { "type": "number", "description": "0..10, penalty for killing a column's last rodent" },
+        "rowWeights": {
+          "type": "array",
+          "description": "exactly 5 numbers 0..10, per-row urgency multipliers (index = row, 0 = top/rats)",
+          "items": { "type": "number" },
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "colAvoid": {
+          "type": "array",
+          "description": "exactly 8 numbers 0..10, per-column targeting penalty (-100 per point)",
+          "items": { "type": "number" },
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "livesRisk": {
+          "type": "array",
+          "description": "exactly 3 numbers 0..10, risk appetite at 3/2/1 lives; 5 = neutral",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "exploration": { "type": "number", "description": "0..10, probability weight for picking 2nd/3rd-best target" },
+        "aimJitterPx": { "type": "number", "description": "0..10, seeded random aim error in px" },
+        "rngSeed": { "type": "number", "description": "seed for the executor RNG; keep it to replay, change it to vary play" }
+      },
+      "required": [
+        "roombaFirst",
+        "lowestRowWeight",
+        "pointsWeight",
+        "shieldPenalty",
+        "chewShields",
+        "dodgeHorizonS",
+        "acceptHitBelowS",
+        "corridorMarginPx",
+        "columnSpreadWeight",
+        "rowWeights",
+        "colAvoid",
+        "livesRisk",
+        "exploration",
+        "aimJitterPx",
+        "rngSeed"
+      ],
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "string",
+      "description": "one short paragraph summarizing your reasoning this consultation"
+    },
+    "memory": {
+      "type": "object",
+      "description": "your persistent state, any JSON shape you want: lessons learned, parameter history, strategy rationale (under 300 words once serialized); consolidated and deduplicated at post-mortems"
+    },
+    "gameSummary": {
+      "type": "string",
+      "description": "ONLY in post-mortem calls: one concise strategy summary of the finished game (under 80 words); send an empty string in the other calls"
+    }
+  },
+  "required": ["params", "notes", "memory", "gameSummary"],
+  "additionalProperties": false
+}

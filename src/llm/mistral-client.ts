@@ -24,7 +24,21 @@ export class MistralClient {
       stream: true,
       max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
       temperature: opts.temperature ?? 0.3,
-      ...(opts.json ? { response_format: { type: "json_object" } } : {}),
+      ...(opts.responseSchema
+        ? {
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "strategy_response",
+                description: "Tuned executor params plus updated memory for the Verminvaders harness.",
+                schema: opts.responseSchema,
+                strict: true,
+              },
+            },
+          }
+        : opts.json
+          ? { response_format: { type: "json_object" } }
+          : {}),
     };
     let lastErr: Error | null = null;
     for (let attempt = 0; attempt < 2; attempt++) {

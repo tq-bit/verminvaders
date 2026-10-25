@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFile, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   EpochTracker,
 } from "../driver/epoch-tracker.ts";
@@ -14,7 +16,28 @@ import { systemPrompt } from "../driver/strategy-prompt.ts";
 import { StrategyController } from "../driver/strategy-controller.ts";
 import type { MistralClient } from "../llm/mistral-client.ts";
 import { HeuristicPolicy } from "../policy/heuristic.ts";
+import { DEFAULT_EXECUTOR_PARAMS } from "../constants/index.ts";
 import { makeState } from "./make-state.ts";
+
+// The strict response schema the controller sends to the API.
+const responseSchema = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../driver/strategy-response.schema.json", import.meta.url)), "utf-8"),
+) as {
+  properties: { params: { properties: Record<string, unknown>; required: string[] } };
+  required: string[];
+};
+
+describe("strategy response schema", () => {
+  it("requires exactly the executor params, in the right types", () => {
+    const props = Object.keys(responseSchema.properties.params.properties).sort();
+    assert.deepEqual(props, Object.keys(DEFAULT_EXECUTOR_PARAMS).sort());
+    assert.deepEqual([...responseSchema.properties.params.required].sort(), props);
+  });
+
+  it("requires the full strategy response shape", () => {
+    assert.deepEqual(responseSchema.required, ["params", "notes", "memory", "gameSummary"]);
+  });
+});
 
 // Fake chat client: returns canned JSON and records the last user payload.
 class FakeClient {

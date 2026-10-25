@@ -7,6 +7,8 @@ export interface ChatMessage {
 
 export interface ChatOptions {
   json?: boolean;
+  /** strict structured output: a JSON Schema object enforced by the API */
+  responseSchema?: Record<string, unknown>;
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;

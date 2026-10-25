@@ -58,7 +58,9 @@ export function systemPrompt(style = ""): string {
     "fire diluted. Use columnSpreadWeight to exploit this, and the spawn histogram to judge where the",
     "fire actually concentrated.",
     "",
-    "Answer ONLY with a JSON object of this shape:",
+    "Your answer is validated against a STRICT JSON schema: the four fields params, notes,",
+    "memory and gameSummary are all required, and every field of params must be present.",
+    "gameSummary must be an empty string except in post-mortem calls. The shape:",
     "{",
     '  "params": {',
     '    "roombaFirst": true | false,',
@@ -77,9 +79,9 @@ export function systemPrompt(style = ""): string {
     '    "aimJitterPx": number 0..10,       // random aim error in px; 0 = perfect aim',
     '    "rngSeed": number                   // seed for the executor\'s randomness; keep it to replay, change it to vary play',
     "  },",
-    '  "notes": "one short paragraph summarizing your reasoning this epoch",',
+    '  "notes": "one short paragraph summarizing your reasoning this consultation",',
     '  "memory": { ...your persistent state, any JSON shape you want... },',
-    '  "gameSummary": "ONLY in post-mortem calls: one concise strategy summary of the finished game (under 80 words)"',
+    '  "gameSummary": "post-mortem calls only: one concise strategy summary of the finished game (under 80 words); empty string otherwise"',
     "}",
   ].join("\n");
   if (!style.trim()) return base;
