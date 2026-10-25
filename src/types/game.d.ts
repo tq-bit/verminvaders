@@ -1,4 +1,4 @@
-// Shared bridge snapshot and harness types (mirrors spec section 3.1).
+// Bridge snapshot types (spec section 3.1) — the world as verminvaders.state() reports it.
 
 export interface CatState {
   x: number;
@@ -77,28 +77,4 @@ export interface GameState {
   formation: Formation;
   roomba: Roomba | null;
   shields: Shield[];
-}
-
-// One decide() result, applied once per tick (spec section 5.1).
-export interface Decision {
-  moveTo?: number;
-  left?: boolean;
-  right?: boolean;
-  shoot?: boolean;
-  stop?: boolean;
-}
-
-export interface Policy {
-  decide(state: GameState): Decision;
-  reset(): void;
-}
-
-export type RunMode = "realtime" | "considered";
-
-export interface RunOptions {
-  mode: RunMode;
-  pollMs: number;
-  maxGames: number;
-  epochMs: number; // strategy-epoch length for the LLM brain (0 = no epochs)
-  logLevel: "silent" | "normal" | "verbose";
 }

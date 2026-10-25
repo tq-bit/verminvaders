@@ -3,7 +3,7 @@
 // positions for half of it (mode B latency, spec section 7).
 
 import type { Page } from "playwright";
-import type { Decision, GameState } from "../types.ts";
+import type { Decision, GameState } from "../types/index.d.ts";
 
 // evaluate callbacks run in the browser page, not in Node
 declare const window: any;

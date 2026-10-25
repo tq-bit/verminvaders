@@ -1,17 +1,16 @@
 // Pure aiming math (spec sections 4 and 6). No I/O, fully unit-testable.
 
-import type { GameState } from "../types.ts";
-
-export const MUZZLE_OFFSET = 18; // furball spawns at cat.x + 18 (spec section 4)
-export const CAT_Y = 536;
-export const MUZZLE_Y = CAT_Y - 16; // 520
-export const FURBALL_SPEED = 430;
-export const CAT_GLIDE_SPEED = 322; // moveTo speed, 1.4 x keyboard
-export const CAT_MIN_X = 36;
-export const CAT_MAX_X = 444;
-export const ARENA_W = 480;
-export const CAT_HALF_WIDTH = 30; // cat hitbox is cat.x +/- 30
-export const CAT_HIT_TOP = 502; // hitbox band 502..536
+import type { GameState } from "../types/index.d.ts";
+import {
+  ARENA_W,
+  CAT_GLIDE_SPEED,
+  CAT_MAX_X,
+  CAT_MIN_X,
+  FURBALL_SPEED,
+  MARCH_DROP_Y,
+  MARCH_STEP_X,
+  MUZZLE_Y,
+} from "../constants/index.ts";
 
 export function clampCatX(x: number): number {
   return Math.max(CAT_MIN_X, Math.min(CAT_MAX_X, x));
@@ -34,7 +33,8 @@ export function marchIntervalFor(s: GameState): number {
 }
 
 // Simulate the formation's march steps forward by dt seconds and return the
-// predicted formation x. Wall contact reverses direction and drops (no x move).
+// predicted formation x. Wall contact reverses direction and drops
+// (MARCH_DROP_Y, no x change).
 export function predictFormationX(s: GameState, dt: number): number {
   let gx = s.formation.x;
   let dir = s.formation.dir;
@@ -56,7 +56,7 @@ export function predictFormationX(s: GameState, dt: number): number {
     } else if (dir < 0 && minX - 10 <= 8) {
       dir = 1;
     } else {
-      gx += 12 * dir;
+      gx += MARCH_STEP_X * dir;
       if (dir > 0) maxX += 12;
       else minX -= 12;
     }

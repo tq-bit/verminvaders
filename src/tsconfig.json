@@ -9,5 +9,16 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["*.ts", "policy/*.ts", "driver/*.ts", "persona/*.ts", "tests/*.ts"]
+  "include": [
+    "*.ts",
+    "constants/*.ts",
+    "errors/*.ts",
+    "llm/*.ts",
+    "policy/*.ts",
+    "driver/*.ts",
+    "persona/*.ts",
+    "ui/*.ts",
+    "tests/*.ts",
+    "types/*.d.ts"
+  ]
 }

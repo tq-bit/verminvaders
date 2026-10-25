@@ -1,12 +1,7 @@
 // Session and per-wave statistics (spec section 8: one-line wave summaries,
 // session summary with games, best score, shots fired, hits).
 
-export interface WaveSummary {
-  wave: number;
-  score: number;
-  lives: number;
-  durationS: number;
-}
+import type { WaveSummary } from "../types/index.d.ts";
 
 export class Stats {
   gamesStarted = 0;

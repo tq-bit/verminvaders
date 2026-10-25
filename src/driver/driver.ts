@@ -2,19 +2,20 @@
 // Handles phase transitions, auto-restart, considered-mode pause wrapping
 // with a finally-resume watchdog, and feeds the fat-cat persona + stats.
 
-import type { Decision, GameState, Policy, RunOptions } from "../types.ts";
+import type {
+  Decision,
+  GameState,
+  HarnessCallbacks,
+  Policy,
+  RunOptions,
+} from "../types/index.d.ts";
 import { Connection } from "./connection.ts";
 import { Stats } from "./stats.ts";
+import type { StrategyController } from "./strategy-controller.ts";
+import { BRIDGE_TIMEOUT_MS } from "../constants/index.ts";
+import { sleep } from "./sleep.ts";
 import type { Persona } from "../persona/persona.ts";
-import type { StrategyController } from "./strategy.ts";
-
-const BRIDGE_TIMEOUT_MS = 10000;
-
-export interface HarnessCallbacks {
-  onWaveSummary?: (wave: number, score: number, lives: number, durationS: number) => void;
-  onSessionSummary?: (summary: string) => void;
-  onGameOver?: (score: number) => void;
-}
+import { c } from "../ui/colors.ts";
 
 export class Harness {
   private conn: Connection;
@@ -237,10 +238,6 @@ export class Harness {
   }
 
   private log(msg: string): void {
-    if (this.opts.logLevel !== "silent") console.error(`[harness] ${msg}`);
+    if (this.opts.logLevel !== "silent") console.error(c.dim(`[harness] ${msg}`));
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

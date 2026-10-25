@@ -1,6 +1,6 @@
 // Crumb threat detection and safe-corridor search (spec section 6, Dodging).
 
-import type { Crumb, GameState } from "../types.ts";
+import type { Crumb, DodgeParams, GameState, Threat } from "../types/index.d.ts";
 import {
   CAT_GLIDE_SPEED,
   CAT_HALF_WIDTH,
@@ -8,26 +8,14 @@ import {
   CAT_MAX_X,
   CAT_MIN_X,
   CAT_Y,
-  clampCatX,
-} from "./aim.ts";
-
-export interface Threat {
-  crumb: Crumb;
-  tti: number; // seconds until the crumb reaches the cat hitbox band
-}
-
-const SHIELD_Y = 392;
-
-export interface DodgeParams {
-  horizonS: number;
-  acceptBelowS: number;
-}
-
-const DEFAULT_DODGE: DodgeParams = { horizonS: 1.6, acceptBelowS: 0.25 };
+  DEFAULT_DODGE_PARAMS,
+  SHIELD_Y,
+} from "../constants/index.ts";
+import { clampCatX } from "./aim.ts";
 
 // A crumb threatens the cat if its x-range overlaps cat.x +/- 30 while invuln
 // is 0 and the crumb will actually reach the cat (not absorbed by a shield).
-export function threateningCrumbs(s: GameState, horizonS = DEFAULT_DODGE.horizonS): Threat[] {
+export function threateningCrumbs(s: GameState, horizonS = DEFAULT_DODGE_PARAMS.horizonS): Threat[] {
   if (s.invuln > 0) return [];
   const threats: Threat[] = [];
   for (const c of s.crumbs) {
@@ -82,7 +70,7 @@ export function findSafeX(s: GameState, threats: Threat[]): number | null {
 
 // Dodge plan: glide to the nearest safe corridor when there is time; below
 // the accept-threshold take the hit (spec section 6).
-export function planDodge(s: GameState, p: DodgeParams = DEFAULT_DODGE): number | null {
+export function planDodge(s: GameState, p: DodgeParams = DEFAULT_DODGE_PARAMS): number | null {
   const threats = threateningCrumbs(s, p.horizonS);
   if (!threats.length) return null;
   const urgent = threats

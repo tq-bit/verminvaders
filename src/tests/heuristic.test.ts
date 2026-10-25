@@ -116,6 +116,32 @@ describe("HeuristicPolicy shield awareness", () => {
   });
 });
 
+describe("HeuristicPolicy column spread", () => {
+  // rows 0-3 in columns other than 3; column 3 holds ONLY a row-4 rodent:
+  // the deepest target is a column's last rodent
+  function sparseRods() {
+    return makeRods().filter((r) => (r.col === 3 ? r.row === 4 : r.row < 4));
+  }
+
+  it("columnSpreadWeight=0 still prefers the deepest rodent", () => {
+    const p = new HeuristicPolicy();
+    const s = makeState({ rods: sparseRods() });
+    const plan = p.planShot(s);
+    assert.ok(plan);
+    const deepest = 84 + 4 * 36 + 24 / 2; // row-4 rodent center y
+    assert.ok(Math.abs((520 - plan.flightT * 430) - deepest) < 10, `expected the row-4 target, got y≈${520 - plan.flightT * 430}`);
+  });
+
+  it("columnSpreadWeight=10 avoids killing the column's last rodent", () => {
+    const p = new HeuristicPolicy({ columnSpreadWeight: 10 });
+    const s = makeState({ rods: sparseRods() });
+    const plan = p.planShot(s);
+    assert.ok(plan);
+    const targetY = 520 - plan.flightT * 430;
+    assert.ok(targetY < 84 + 4 * 36, `expected a shallower target, got y≈${targetY}`);
+  });
+});
+
 describe("HeuristicPolicy wave reset", () => {
   it("clears chewed holes on a new wave", () => {
     const p = freshPolicy();

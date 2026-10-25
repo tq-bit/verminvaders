@@ -1,6 +1,6 @@
 // Fixture builder for policy tests: a wave-1 state snapshot.
 
-import type { GameState, Rodent, Shield } from "../types.ts";
+import type { GameState, Rodent, Shield } from "../types/index.d.ts";
 
 export function makeRods(formationX = 52, formationY = 84, cols = 8, rows = 5): Rodent[] {
   const rods: Rodent[] = [];

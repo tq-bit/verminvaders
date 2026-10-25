@@ -14,10 +14,13 @@ import { chromium, type Browser, type Page } from "playwright";
 import { HeuristicPolicy } from "./policy/heuristic.ts";
 import { Connection } from "./driver/connection.ts";
 import { Harness } from "./driver/driver.ts";
-import { StrategyController } from "./driver/strategy.ts";
-import { MistralClient } from "./llm/mistral.ts";
-import { loadCatLines, Persona } from "./persona/persona.ts";
-import type { RunOptions } from "./types.ts";
+import { StrategyController } from "./driver/strategy-controller.ts";
+import { MistralClient } from "./llm/mistral-client.ts";
+import { c } from "./ui/colors.ts";
+import { ThinkingRenderer } from "./ui/thinking-renderer.ts";
+import { loadCatLines } from "./persona/lines.ts";
+import { Persona } from "./persona/persona.ts";
+import type { Args, RunOptions } from "./types/index.d.ts";
 
 // page.evaluate callbacks run in the browser, not in Node
 declare const window: any;
@@ -37,18 +40,16 @@ async function loadEnvFile(file: string): Promise<void> {
   }
 }
 
-interface Args {
-  headed: boolean;
-  mode: "realtime" | "considered";
-  pollMs: number;
-  maxGames: number;
-  personaPath?: string;
-  gamePath: string;
-  logLevel: "silent" | "normal" | "verbose";
-  model: string;
-  epochMs: number;
-  memoryPath: string;
-  noLlm: boolean;
+// Non-negative integer env variable with a fallback and a warning on garbage.
+function intEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) {
+    console.error(c.yellow(`[harness] ignoring invalid ${name}="${raw}", using ${fallback}`));
+    return fallback;
+  }
+  return n;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -62,6 +63,7 @@ function parseArgs(argv: string[]): Args {
     model: "mistral-large-4",
     epochMs: 10000,
     memoryPath: path.resolve(import.meta.dirname, "..", "memory", "mistral-strategy.json"),
+    style: "",
     noLlm: false,
   };
   for (let i = 2; i < argv.length; i++) {
@@ -77,10 +79,11 @@ function parseArgs(argv: string[]): Args {
       case "--model": args.model = requireValue(argv, ++i, a); break;
       case "--epoch-ms": args.epochMs = Number(requireValue(argv, ++i, a)); break;
       case "--memory": args.memoryPath = path.resolve(requireValue(argv, ++i, a)); break;
+      case "--style": args.style = requireValue(argv, ++i, a); break;
       case "--no-llm": args.noLlm = true; break;
       case "--help":
       case "-h":
-        console.log("node main.ts [--headed] [--mode realtime|considered] [--poll ms] [--games n] [--persona path] [--game path] [--log-level silent|normal|verbose] [--model name] [--epoch-ms n] [--memory path] [--no-llm]");
+        console.log("node main.ts [--headed] [--mode realtime|considered] [--poll ms] [--games n] [--persona path] [--game path] [--log-level silent|normal|verbose] [--model name] [--epoch-ms n] [--memory path] [--style 'directive'] [--no-llm]");
         process.exit(0);
         break;
       default:
@@ -170,29 +173,48 @@ async function main(): Promise<void> {
       return;
     }
     const client = new MistralClient(apiKey, args.model);
-    strategy = new StrategyController(client, args.memoryPath, {
-      onStrategy: (notes, params) => {
-        console.log(`[${args.model}] ${notes}`);
-        console.log(
-          `[${args.model}] params: roombaFirst=${params.roombaFirst} rowW=${params.lowestRowWeight} ptsW=${params.pointsWeight} shieldPen=${params.shieldPenalty} chew=${params.chewShields} dodgeH=${params.dodgeHorizonS}s accept=${params.acceptHitBelowS}s margin=${params.corridorMarginPx}px`,
-        );
+    const thinking = new ThinkingRenderer(args.model);
+    const limits = {
+      contextGames: intEnv("VERMINVADERS_CONTEXT_GAMES", 5),
+      maxMemoryGames: intEnv("VERMINVADERS_MEMORY_MAX_GAMES", 10),
+    };
+    strategy = new StrategyController(
+      client,
+      args.memoryPath,
+      {
+        onThinkingDelta: (delta) => thinking.push("thinking", delta),
+        onThinkingEnd: () => thinking.finish(),
+        onStrategy: (notes, params) => {
+          console.log(c.cyan(`[${args.model}] ${notes}`));
+          console.log(
+            c.green(
+              `[${args.model}] params: roombaFirst=${params.roombaFirst} rowW=${params.lowestRowWeight} ptsW=${params.pointsWeight} shieldPen=${params.shieldPenalty} chew=${params.chewShields} dodgeH=${params.dodgeHorizonS}s accept=${params.acceptHitBelowS}s margin=${params.corridorMarginPx}px colSpreadW=${params.columnSpreadWeight}`,
+            ),
+          );
+        },
+        onLlmError: (msg) => console.error(c.red(`[${args.model}] ${msg}`)),
       },
-      onLlmError: (msg) => console.error(`[${args.model}] ${msg}`),
-    });
+      args.style,
+      limits,
+    );
     await strategy.load();
   }
 
   harness = new Harness(conn, policy, persona, opts, {
     onWaveSummary: (wave, score, lives, durS) =>
-      console.log(`[wave ${wave} cleared] score=${score} lives=${lives} duration=${durS}s`),
-    onSessionSummary: (summary) => console.log(`[session] ${summary}`),
-    onGameOver: (score) => console.log(`[game over] score=${score}`),
+      console.log(c.green(`[wave ${wave} cleared] score=${score} lives=${lives} duration=${durS}s`)),
+    onSessionSummary: (summary) => console.log(c.bold(`[session] ${summary}`)),
+    onGameOver: (score) => console.log(c.red(`[game over] score=${score}`)),
   }, strategy);
 
   try {
     await harness.connect();
-    console.log(`[harness] playing ${path.basename(args.gamePath)} at ${url}`);
-    console.log(`[harness] mode=${opts.mode} poll=${opts.pollMs}ms games=${opts.maxGames} brain=${args.noLlm ? "local-executor" : `${args.model} @ ${opts.epochMs}ms epochs`}`);
+    console.log(c.blue(`[harness] playing ${path.basename(args.gamePath)} at ${url}`));
+    console.log(
+      c.blue(
+        `[harness] mode=${opts.mode} poll=${opts.pollMs}ms games=${opts.maxGames} brain=${args.noLlm ? "local-executor" : `${args.model} @ ${opts.epochMs}ms epochs`}${args.style ? c.yellow(` style="${args.style}"`) : ""}`,
+      ),
+    );
     await harness.run();
   } finally {
     await browser.close().catch(() => {});
@@ -201,6 +223,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  console.error(`[harness] fatal: ${(e as Error).message}`);
+  console.error(c.red(`[harness] fatal: ${(e as Error).message}`));
   process.exitCode = 1;
 });
