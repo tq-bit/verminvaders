@@ -1,4 +1,4 @@
-// CLI argument types (main.ts).
+// CLI argument types (ui/cli.ts).
 
 export interface Args {
   headed: boolean;

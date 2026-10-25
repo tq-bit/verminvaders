@@ -33,7 +33,7 @@ app/
     game.js                 the game (canvas, bridge API `window.verminvaders`)
 spec/                         the harness specification (requirements)
 src/
-  main.ts                     CLI entrypoint: serves the game, launches the browser
+  main.ts                     lean entrypoint: wires the pieces and runs the session
   types/                      all shared types, by module, re-exported from index.d.ts
     index.d.ts                import types from here (type-only imports)
     game.d.ts                  bridge snapshot types (GameState, ...)
@@ -64,8 +64,11 @@ src/
     lines.ts                  line loading and validation
     persona.ts                cooldown-aware narrator (class only)
   ui/
+    cli.ts                    CLI argument parsing, .env loading, env ints
     colors.ts                 TTY-aware ANSI colors
     thinking-renderer.ts      live reasoning stream renderer (class only)
+  www/
+    static-server.ts          tiny static server for the game directory
   tests/                      48 unit tests (no network needed)
 memory/                       the model's persistent strategy memory (gitignored)
 ```
