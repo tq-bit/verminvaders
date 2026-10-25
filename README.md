@@ -15,10 +15,22 @@ epochs, games, and sessions, the model is meant to get better the longer it play
 While the model thinks, its reasoning is streamed live to the terminal (dim gray), and a
 fat cat narrates the session with commentary lines you can edit freely.
 
+## Play the demo
+
+The game is playable in the browser, no install needed:
+
+- **https://tq-bit.github.io/verminvaders/** — deployed by the
+  `Deploy demo to GitHub Pages` workflow on every push to `main` that touches `app/`.
+  Enable it once in repo Settings > Pages: **Source: GitHub Actions**.
+- locally: open `app/index.html` in a browser, or run the harness below.
+
 ## Project layout
 
 ```
-app/verminvaders-demo.html    the game (single self-contained HTML page)
+app/
+    index.html              the game page (loads style.css and game.js)
+    style.css               page styling
+    game.js                 the game (canvas, bridge API `window.verminvaders`)
 spec/                         the harness specification (requirements)
 src/
   main.ts                     CLI entrypoint: serves the game, launches the browser
@@ -123,7 +135,7 @@ npm run typecheck           # tsc --noEmit
 | `--style '<directive>'` | (none) | Operator directive injected into the model's prompt — see below. |
 | `--memory <path>` | `memory/mistral-strategy.json` | Where the model's persistent memory lives. |
 | `--persona <path>` | `src/persona/lines.json` | Custom fat-cat lines file. |
-| `--game <path>` | `app/verminvaders-demo.html` | Path to the game page. |
+| `--game <path>` | `app/index.html` | Path to the game page. |
 | `--mode realtime\|considered` | `realtime` | `considered` also pauses the game around every executor tick (slow; mostly for debugging). |
 | `--poll <ms>` | `80` | Executor tick interval. |
 | `--log-level silent\|normal\|verbose` | `normal` | `verbose` logs every shot; `silent` also silences the cat. |

@@ -1,37 +1,3 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Verminvaders</title>
-<style>
-  html, body {
-    margin: 0; padding: 0;
-    background: #0d0f1e;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    min-height: 100vh;
-    font-family: monospace;
-  }
-  canvas {
-    background: #12142a;
-    border: 2px solid #2c2f52;
-    border-radius: 6px;
-    image-rendering: pixelated;
-    max-width: 96vw;
-    height: auto;
-    touch-action: none;
-    cursor: crosshair;
-  }
-  .hint {
-    color: #5a5e8a; font-size: 12px; margin-top: 8px; text-align: center;
-  }
-</style>
-</head>
-<body>
-<canvas id="game" width="480" height="600"></canvas>
-<div class="hint">Click the game once so it can hear your keyboard.</div>
-<script>
 (function () {
   "use strict";
   const cvs = document.getElementById("game");
@@ -819,6 +785,3 @@
   }
   requestAnimationFrame(loop);
 })();
-</script>
-</body>
-</html>

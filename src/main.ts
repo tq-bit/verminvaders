@@ -58,7 +58,7 @@ function parseArgs(argv: string[]): Args {
     mode: "realtime",
     pollMs: 80,
     maxGames: 3,
-    gamePath: path.resolve(import.meta.dirname, "..", "app", "verminvaders-demo.html"),
+    gamePath: path.resolve(import.meta.dirname, "..", "app", "index.html"),
     logLevel: "normal",
     model: "mistral-large-4",
     epochMs: 10000,
@@ -99,12 +99,30 @@ function requireValue(argv: string[], i: number, flag: string): string {
   return v;
 }
 
-// Tiny static server: some browsers restrict localStorage on file:// URLs.
-function serveOnce(html: string): Promise<{ server: ReturnType<typeof createServer>; url: string }> {
+// Tiny static server for the game directory: some browsers restrict
+// localStorage on file:// URLs, and the page loads its CSS/JS via relative URLs.
+function serveDir(dir: string): Promise<{ server: ReturnType<typeof createServer>; url: string }> {
+  const types: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+  };
   return new Promise((resolve) => {
-    const server = createServer((req, res) => {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(html);
+    const server = createServer(async (req, res) => {
+      try {
+        const rel = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
+        const safe = path.normalize(rel).replace(/^([.][.][/\\])+/, "");
+        let file = path.resolve(dir, "." + safe);
+        if (!file.startsWith(path.resolve(dir))) file = path.resolve(dir, "index.html");
+        if (safe.endsWith("/") || path.extname(file) === "") file = path.join(file, "index.html");
+        const type = types[path.extname(file)] ?? "application/octet-stream";
+        const body = await readFile(file);
+        res.writeHead(200, { "content-type": type });
+        res.end(body);
+      } catch {
+        res.writeHead(404, { "content-type": "text/plain" });
+        res.end("not found");
+      }
     });
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address();
@@ -117,8 +135,7 @@ function serveOnce(html: string): Promise<{ server: ReturnType<typeof createServ
 async function main(): Promise<void> {
   await loadEnvFile(path.resolve(import.meta.dirname, ".env"));
   const args = parseArgs(process.argv);
-  const html = await readFile(args.gamePath, "utf-8");
-  const { server, url } = await serveOnce(html);
+  const { server, url } = await serveDir(path.dirname(args.gamePath));
 
   const lines = await loadCatLines(args.personaPath);
   const persona = new Persona(lines, args.logLevel === "silent");
