@@ -22,6 +22,7 @@ export const DEFAULT_EXECUTOR_PARAMS: ExecutorParams = {
   livesRisk: [5, 5, 5],
   exploration: 0,
   aimJitterPx: 0,
+  travelCost: 0,
   rngSeed: 0,
 };
 

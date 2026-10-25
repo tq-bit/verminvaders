@@ -123,7 +123,7 @@ async function main(): Promise<void> {
           );
           console.log(
             c.green(
-              `[${args.model}] levers: rowWeights=${params.rowWeights.join("/")} colAvoid=${params.colAvoid.join("/")} livesRisk=${params.livesRisk.join("/")} exploration=${params.exploration} aimJitter=${params.aimJitterPx}px seed=${params.rngSeed}`,
+              `[${args.model}] levers: rowWeights=${params.rowWeights.join("/")} colAvoid=${params.colAvoid.join("/")} livesRisk=${params.livesRisk.join("/")} exploration=${params.exploration} aimJitter=${params.aimJitterPx}px travelCost=${params.travelCost} seed=${params.rngSeed}`,
             ),
           );
         },

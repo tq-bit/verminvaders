@@ -252,6 +252,34 @@ describe("HeuristicPolicy dodge commitment", () => {
   });
 });
 
+describe("HeuristicPolicy travelCost", () => {
+  // a deep far rodent (col 1, row 4) scores 233 but needs a 147 px glide;
+  // a shallow near rodent (col 4, row 2) scores 166 from 15 px away.
+  // nextMarchIn is pinned high so the formation does not move mid-flight.
+  function twoRods() {
+    const s = makeState({
+      rods: [
+        { x: 96, y: 228, w: 30, h: 24, row: 4, col: 1, rat: false, points: 10 },
+        { x: 228, y: 156, w: 30, h: 24, row: 2, col: 4, rat: false, points: 20 },
+      ],
+    });
+    s.formation.nextMarchIn = 5;
+    return s;
+  }
+
+  it("travelCost=0 chases the best target regardless of distance", () => {
+    const plan = new HeuristicPolicy().planShot(twoRods());
+    assert.ok(plan);
+    assert.ok(Math.abs(plan.shotX - 111) < 6, `expected the far deep target, got ${plan.shotX}`);
+  });
+
+  it("travelCost=10 prefers shooting from where the cat stands", () => {
+    const plan = new HeuristicPolicy({ travelCost: 10 }).planShot(twoRods());
+    assert.ok(plan);
+    assert.ok(Math.abs(plan.shotX - 243) < 6, `expected the near shallow target, got ${plan.shotX}`);
+  });
+});
+
 describe("HeuristicPolicy wave reset", () => {
   it("clears chewed holes on a new wave", () => {
     const p = freshPolicy();

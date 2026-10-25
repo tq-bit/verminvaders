@@ -115,8 +115,9 @@ flowchart TD
     subgraph scoring ["rodent scoring"]
         G --> G1["y × lowestRowWeight × rowWeights[row]<br/>+ points × pointsWeight"]
         G1 --> G2["- colAvoid[col] × 100"]
-        G2 --> G3["- shieldPenalty if blocked<br/>(scaled by livesRisk)"]
-        G3 --> G4["- 2000 if standing spot is hot<br/>- columnSpreadWeight × 100 if last in column"]
+        G2 --> G3["- travelCost × glide px / 10"]
+        G3 --> G4["- shieldPenalty if blocked<br/>(scaled by livesRisk)"]
+        G4 --> G5["- 2000 if standing spot is hot<br/>- columnSpreadWeight × 100 if last in column"]
     end
 
     scoring --> K{"exploration > 0?"}
@@ -171,6 +172,7 @@ Behavioral rules baked into the code:
 | `livesRisk` | 3 × 0..10 | [5,5,5] | risk appetite at 3/2/1 lives; 5 = neutral |
 | `exploration` | 0..10 | 0 | probability of picking 2nd/3rd-best target |
 | `aimJitterPx` | 0..10 | 0 | seeded random aim error |
+| `travelCost` | 0..10 | 0 | laziness: 1 score point per 10 px of glide to the aim point; 0 = distance ignored |
 | `rngSeed` | int | 0 (env) | seed for all executor randomness |
 
 The `livesRisk` levers scale two existing params around their neutral

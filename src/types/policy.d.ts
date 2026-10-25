@@ -38,6 +38,9 @@ export interface ExecutorParams {
   exploration: number;
   /** random aim error in px; 0 = perfectly deterministic aiming */
   aimJitterPx: number;
+  /** laziness of the executor: each point penalizes target scores by 1 per
+   *  10 px of glide distance to the aim point; 0 = distance is ignored */
+  travelCost: number;
   /** seed for the executor RNG; identical seeds replay identical executor
    *  decisions — games still vary, the enemy fire is unseeded */
   rngSeed: number;

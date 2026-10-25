@@ -34,6 +34,7 @@ export function normalizeParams(raw: unknown): ExecutorParams {
     livesRisk: clampArray(r.livesRisk, 3, 0, 10, 5),
     exploration: clamp(r.exploration, 0, 10, 0),
     aimJitterPx: clamp(r.aimJitterPx, 0, 10, 0),
+    travelCost: clamp(r.travelCost, 0, 10, 0),
     rngSeed: typeof r.rngSeed === "number" && Number.isFinite(r.rngSeed) ? r.rngSeed : 0,
   };
 }

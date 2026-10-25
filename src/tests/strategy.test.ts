@@ -127,6 +127,7 @@ describe("parseStrategyResponse", () => {
       livesRisk: [10], // padded with the neutral default
       exploration: 99,
       aimJitterPx: -1,
+      travelCost: 42,
       rngSeed: "bogus",
     });
     assert.deepEqual(p.rowWeights, [3, 10, 0, 1, 1]);
@@ -134,6 +135,7 @@ describe("parseStrategyResponse", () => {
     assert.deepEqual(p.livesRisk, [10, 5, 5]);
     assert.equal(p.exploration, 10);
     assert.equal(p.aimJitterPx, 0);
+    assert.equal(p.travelCost, 10);
     assert.equal(p.rngSeed, 0);
   });
 });

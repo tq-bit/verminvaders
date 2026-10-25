@@ -224,6 +224,9 @@ export class HeuristicPolicy implements Policy {
         r.y * this.params.lowestRowWeight * (this.params.rowWeights[r.row] ?? 1) +
         r.points * this.params.pointsWeight -
         (this.params.colAvoid[r.col] ?? 0) * 100;
+      // travelCost: laziness — 1 score point per 10 px of glide, so the
+      // model can trade urgency against shooting from where the cat stands
+      score -= (this.params.travelCost * Math.abs(finalCatX - s.cat.x)) / 10;
       if (blocked) score -= shieldPenalty;
       if (isHot) score -= 2000;
       if (colAlive[r.col] <= 1) score -= this.params.columnSpreadWeight * 100;
