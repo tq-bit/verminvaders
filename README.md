@@ -97,6 +97,7 @@ You can tweak how the AI plays the game. `--headed` allows you to watch the mode
 | `--log-level silent\|normal\|verbose` | `normal` | `verbose` logs every shot; `silent` also silences the cat. |
 | `--no-llm` | off | Skip all API calls; the executor plays with its default parameters. |
 | `--no-thinking` | off | Hide the model's reasoning text; show a `Strategizing` pixel indicator instead. |
+| `--no-prompt` | off | Skip the interactive setup wizard (it only runs on a TTY). |
 
 Examples:
 

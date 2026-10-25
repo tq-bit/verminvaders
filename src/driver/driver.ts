@@ -152,7 +152,9 @@ export class Harness {
   }
 
   // Wave intermission: pause the frozen banner, let Mistral retune for the
-  // incoming wave, apply the params, resume. Runs once per cleared wave.
+  // incoming wave, apply the params, resume. Runs once per cleared wave and
+  // RESETS the epoch clock — otherwise an epoch deadline that expired
+  // during the intermission would fire a second consultation on resume.
   private async handleWavePlan(s: GameState): Promise<void> {
     if (!this.wavePlanPending || !this.strategy) return;
     this.wavePlanPending = false;
@@ -164,6 +166,7 @@ export class Harness {
       if (params) {
         (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
       }
+      this.nextStrategyAt = Date.now() + this.opts.epochMs;
     } finally {
       // watchdog: a crash in the LLM path must never leave the game frozen
       await this.conn.resume().catch(() => {});

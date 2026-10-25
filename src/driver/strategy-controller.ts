@@ -193,7 +193,7 @@ export class StrategyController {
         messages,
         {
           ...(schema ? { responseSchema: schema } : { json: true }),
-          maxTokens: 8000,
+          maxTokens: 12000,
         },
         (kind, delta) => {
           if (kind === "thinking") this.cb.onThinkingDelta?.(delta);

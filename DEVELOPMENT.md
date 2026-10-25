@@ -31,6 +31,15 @@ latency can never cost a life.
 | **Epoch update** | every `--epoch-ms` (default 10 s) of play | `updateStrategy` | `epochUpdate(s)` |
 | **Post-mortem** | `gameover` screen, once per finished game | `handleRestart` | `postMortem(s, n)` |
 
+The moments never double-fire at a wave boundary: the wave plan **resets the
+epoch clock**, so an epoch deadline that expired during the intermission is
+postponed instead of triggering a second consultation on resume. (An epoch
+update that fired during the final seconds of *play* is legitimate
+play-time reasoning and is not suppressed.) The epoch clock can also be
+primed before a session starts: on a TTY the harness runs an interactive
+setup wizard (games, epoch period, style directive, reasoning display —
+`--no-prompt` skips it) with the flag values as preselected defaults.
+
 Every consultation is the same round trip:
 
 ```mermaid

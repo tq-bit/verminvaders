@@ -8,7 +8,7 @@
 //                [--games <n>] [--persona <path>] [--game <path>]
 //                [--log-level silent|normal|verbose] [--model <name>]
 //                [--epoch-ms <n>] [--memory <path>] [--style 'directive']
-//                [--no-llm] [--no-thinking]
+//                [--no-llm] [--no-thinking] [--no-prompt]
 
 import path from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
@@ -20,6 +20,8 @@ import { MistralClient } from "./llm/mistral-client.ts";
 import { c } from "./ui/colors.ts";
 import { ThinkingRenderer } from "./ui/thinking-renderer.ts";
 import { parseArgs, loadEnvFile, intEnv } from "./ui/cli.ts";
+import { makeQuestioner, promptConfig } from "./ui/wizard.ts";
+import type { Interface } from "node:readline/promises";
 import { serveDir } from "./www/static-server.ts";
 import { loadCatLines } from "./persona/lines.ts";
 import { Persona } from "./persona/persona.ts";
@@ -30,7 +32,16 @@ declare const window: any;
 
 async function main(): Promise<void> {
   await loadEnvFile(path.resolve(import.meta.dirname, ".env"));
-  const args = parseArgs(process.argv);
+  let args = parseArgs(process.argv);
+  // interactive setup: prompt for the player-flavored params when on a TTY
+  if (args.prompt && process.stdin.isTTY && !args.noLlm) {
+    const rl = makeQuestioner();
+    try {
+      args = await promptConfig(args, rl);
+    } finally {
+      (rl as unknown as Interface).close();
+    }
+  }
   const { server, url } = await serveDir(path.dirname(args.gamePath));
 
   const lines = await loadCatLines(args.personaPath);

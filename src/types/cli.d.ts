@@ -15,4 +15,6 @@ export interface Args {
   noLlm: boolean;
   /** stream the model's reasoning text (false: show a Strategizing indicator) */
   thinking: boolean;
+  /** run the interactive setup wizard when stdin is a TTY */
+  prompt: boolean;
 }
