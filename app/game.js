@@ -19,9 +19,20 @@
   const SX = 44, SY = 36; // rodent formation spacing
   const keys = {};
 
+  // qbit design system (dark theme) - canvas UI palette.
+  // Mirrors the RGB-triplet tokens from style.css; sprites keep their own colors.
+  const QBIT = {
+    bg: "#050810",        // --color-bg
+    text: "#eef3fa",      // --color-text
+    muted: "#96a2b5",     // --color-text-muted
+    primary: "#409cff",   // --color-primary
+    secondary: "#b27aff", // --color-secondary
+    error: "#ef4444"      // $color-error
+  };
+
   // stars background
   const stars = [];
-  for (let i = 0; i < 70; i++) stars.push({ x: Math.random() * W, y: Math.random() * (H - 120), r: Math.random() * 1.6 + 0.4, p: Math.random() * 6 });
+  for (let i = 0; i < 70; i++) stars.push({ x: Math.random() * W, y: Math.random() * (H - 120), r: Math.random() * 1.6 + 0.4, p: Math.random() * 6, c: Math.random() < 0.22 ? QBIT.secondary : QBIT.primary });
 
   // ---------- shield types (the furniture defense line) ----------
   const SHIELD_TYPES = [
@@ -414,7 +425,7 @@
     for (const s of stars) {
       const tw = 0.4 + 0.6 * Math.abs(Math.sin(time * 1.4 + s.p));
       ctx.globalAlpha = tw;
-      ctx.fillStyle = "#cfd4ea";
+      ctx.fillStyle = s.c;
       ctx.fillRect(s.x, s.y, s.r, s.r);
     }
     ctx.globalAlpha = 1;
@@ -534,9 +545,9 @@
   }
 
   function drawHUD() {
-    drawText("SCORE " + String(score).padStart(5, "0"), 12, 22, 2, "#cfd4ea", "left");
-    drawText("WAVE " + wave, W / 2, 22, 2, "#cfd4ea", "center");
-    drawText("HI " + String(hi).padStart(5, "0"), W - 12, 22, 2, "#cfd4ea", "right");
+    drawText("SCORE " + String(score).padStart(5, "0"), 12, 22, 2, QBIT.text, "left");
+    drawText("WAVE " + wave, W / 2, 22, 2, QBIT.text, "center");
+    drawText("HI " + String(hi).padStart(5, "0"), W - 12, 22, 2, QBIT.text, "right");
     // lives as pixel cat heads (Mistral style)
     for (let i = 0; i < lives; i++) {
       const x = 20 + i * 26, y = H - 18;
@@ -555,7 +566,7 @@
   }
 
   function overlay(alpha) {
-    ctx.fillStyle = "rgba(10,10,24," + alpha + ")";
+    ctx.fillStyle = "rgba(5,8,16," + alpha + ")";
     ctx.fillRect(0, 0, W, H);
   }
 
@@ -614,12 +625,20 @@
     "=": ".....|#####|.....|#####|....."
   };
   // blocky bitmap text: s = pixel scale, glyph bottom sits on the y baseline
+  // color "gradient" paints the qbit primary -> secondary emphasis (45deg)
   function drawText(txt, x, y, s, color, align) {
     txt = String(txt).toUpperCase();
     const w = txt.length * 6 * s - s;
     if (align === "center") x -= w / 2;
     else if (align === "right") x -= w;
-    ctx.fillStyle = color;
+    if (color === "gradient") {
+      const g = ctx.createLinearGradient(x, y - 5 * s, x + w, y);
+      g.addColorStop(0, QBIT.primary);
+      g.addColorStop(1, QBIT.secondary);
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = color;
+    }
     for (let i = 0; i < txt.length; i++) {
       const rows = (FONT[txt[i]] || FONT[" "]).split("|");
       const gx = Math.round(x + i * 6 * s);
@@ -638,7 +657,7 @@
   }
 
   function draw() {
-    ctx.fillStyle = "#12142a";
+    ctx.fillStyle = QBIT.bg;
     ctx.fillRect(0, 0, W, H);
     drawStars();
     drawLasagna();
@@ -656,26 +675,26 @@
 
     if (state === "title") {
       overlay(0.55);
-      centerText("VERMINVADERS", 190, 42, "#f6d365", true);
-      centerText("The rodents march for the lasagna.", 225, 14, "#cfd4ea");
-      centerText("Spit furballs. Guard the furniture.", 247, 14, "#cfd4ea");
-      centerText("<-  ->  or A/D   move", 320, 13, "#8b93c3");
-      centerText("SPACE   spit a furball", 342, 13, "#8b93c3");
-      centerText("P   pause   (mouse: move + click)", 364, 13, "#8b93c3");
-      centerText("AI harness: window.verminvaders", 386, 13, "#5c6390");
-      if (Math.floor(time * 2) % 2 === 0) centerText("PRESS SPACE OR TAP TO START", 430, 16, "#6ee7ff", true);
+      centerText("VERMINVADERS", 190, 42, "gradient", true);
+      centerText("The rodents march for the lasagna.", 225, 14, QBIT.text);
+      centerText("Spit furballs. Guard the furniture.", 247, 14, QBIT.text);
+      centerText("<-  ->  or A/D   move", 320, 13, QBIT.muted);
+      centerText("SPACE   spit a furball", 342, 13, QBIT.muted);
+      centerText("P   pause   (mouse: move + click)", 364, 13, QBIT.muted);
+      centerText("AI harness: window.verminvaders", 386, 13, "rgba(150,162,181,0.55)");
+      if (Math.floor(time * 2) % 2 === 0) centerText("PRESS SPACE OR TAP TO START", 430, 16, QBIT.primary, true);
     } else if (state === "waveclear") {
-      centerText("WAVE " + wave + " CLEARED", 250, 24, "#6ee7ff", true);
-      centerText("The rodents retreat to regroup...", 280, 13, "#cfd4ea");
+      centerText("WAVE " + wave + " CLEARED", 250, 24, QBIT.secondary, true);
+      centerText("The rodents retreat to regroup...", 280, 13, QBIT.text);
     } else if (state === "gameover") {
       overlay(0.5);
-      centerText("THE LASAGNA IS LOST", 220, 28, "#e63946", true);
-      centerText(overMsg, 252, 13, "#cfd4ea");
-      centerText("Score: " + score, 290, 16, "#f6d365", true);
-      if (Math.floor(time * 2) % 2 === 0) centerText("PRESS SPACE TO TRY AGAIN", 340, 15, "#6ee7ff");
+      centerText("THE LASAGNA IS LOST", 220, 28, QBIT.error, true);
+      centerText(overMsg, 252, 13, QBIT.text);
+      centerText("Score: " + score, 290, 16, QBIT.secondary, true);
+      if (Math.floor(time * 2) % 2 === 0) centerText("PRESS SPACE TO TRY AGAIN", 340, 15, QBIT.primary);
     }
     if (paused && state === "playing") {
-      centerText("PAUSED (cat nap)", 290, 24, "#cfd4ea", true);
+      centerText("PAUSED (cat nap)", 290, 24, QBIT.text, true);
     }
   }
 
