@@ -142,6 +142,64 @@ describe("HeuristicPolicy column spread", () => {
   });
 });
 
+describe("HeuristicPolicy structured levers", () => {
+  it("rowWeights can invert the deepest-first preference", () => {
+    const p = new HeuristicPolicy({ rowWeights: [10, 1, 1, 1, 1] });
+    const plan = p.planShot(makeState());
+    assert.ok(plan);
+    const targetY = 520 - plan.flightT * 430;
+    assert.ok(targetY < 84 + 36, `expected a top-row (rat) target, got y≈${targetY}`);
+  });
+
+  it("colAvoid steers targeting away from penalized columns", () => {
+    const p = new HeuristicPolicy({ colAvoid: [10, 10, 10, 10, 10, 10, 10, 0] });
+    const plan = p.planShot(makeState());
+    assert.ok(plan);
+    // column 7's corridor: formation x 52 + 7*44 = 360, rodent center ~+15
+    assert.ok(plan.shotX > 330, `expected a column-7 target, got shotX=${plan.shotX}`);
+  });
+
+  it("livesRisk=0 dodges a late crumb that livesRisk=10 accepts", () => {
+    // tti ≈ 0.30 s: above the neutral accept threshold, below the risky one
+    const crumbs = [{ x: 235, y: 449, w: 10, h: 10, vy: 144 }];
+    const safe = new HeuristicPolicy({ livesRisk: [0, 0, 0] });
+    safe.decide(makeState({ crumbs }));
+    assert.equal(safe.lastReason, "dodge");
+    const risky = new HeuristicPolicy({ livesRisk: [10, 10, 10] });
+    risky.decide(makeState({ crumbs }));
+    assert.notEqual(risky.lastReason, "dodge");
+  });
+});
+
+describe("HeuristicPolicy seeded randomness", () => {
+  const levers = { exploration: 10, aimJitterPx: 6 };
+
+  it("stays deterministic with exploration=0 and no jitter", () => {
+    const a = new HeuristicPolicy().planShot(makeState());
+    const b = new HeuristicPolicy().planShot(makeState());
+    assert.ok(a && b);
+    assert.equal(a.catX, b.catX);
+  });
+
+  it("replays identically for identical seeds", () => {
+    const a = new HeuristicPolicy({ ...levers, rngSeed: 42 });
+    const b = new HeuristicPolicy({ ...levers, rngSeed: 42 });
+    for (let i = 0; i < 5; i++) {
+      const pa = a.planShot(makeState());
+      const pb = b.planShot(makeState());
+      assert.ok(pa && pb);
+      assert.equal(pa.catX, pb.catX);
+    }
+  });
+
+  it("varies play across seeds", () => {
+    const a = new HeuristicPolicy({ ...levers, rngSeed: 1 }).planShot(makeState());
+    const b = new HeuristicPolicy({ ...levers, rngSeed: 2 }).planShot(makeState());
+    assert.ok(a && b);
+    assert.notEqual(a.catX, b.catX);
+  });
+});
+
 describe("HeuristicPolicy wave reset", () => {
   it("clears chewed holes on a new wave", () => {
     const p = freshPolicy();

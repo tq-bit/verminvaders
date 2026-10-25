@@ -96,6 +96,23 @@ describe("parseStrategyResponse", () => {
   it("returns null on unparseable text", () => {
     assert.equal(parseStrategyResponse("I refuse to answer."), null);
   });
+
+  it("fills and clamps the structured lever arrays", () => {
+    const p = normalizeParams({
+      rowWeights: [3, 99, -4], // padded, clamped to 0..10
+      colAvoid: "not an array", // falls back to all zeros
+      livesRisk: [10], // padded with the neutral default
+      exploration: 99,
+      aimJitterPx: -1,
+      rngSeed: "bogus",
+    });
+    assert.deepEqual(p.rowWeights, [3, 10, 0, 1, 1]);
+    assert.deepEqual(p.colAvoid, [0, 0, 0, 0, 0, 0, 0, 0]);
+    assert.deepEqual(p.livesRisk, [10, 5, 5]);
+    assert.equal(p.exploration, 10);
+    assert.equal(p.aimJitterPx, 0);
+    assert.equal(p.rngSeed, 0);
+  });
 });
 
 describe("StrategyController per-game summaries and limits", () => {
@@ -139,6 +156,43 @@ describe("StrategyController per-game summaries and limits", () => {
     assert.ok(fake.lastPayload.includes('"score":4'));
     assert.ok(fake.lastPayload.includes('"score":3'));
     assert.ok(!fake.lastPayload.includes('"score":2'), "older games must be excluded");
+    await rm(tmpFile, { force: true });
+  });
+
+  it("opening consultation sends memory + past games and returns tuned params", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new FakeClient();
+    fake.answer = JSON.stringify({
+      params: { roombaFirst: false, dodgeHorizonS: 1.2 },
+      notes: "opening tuned",
+      memory: { lessons: ["chew early"] },
+    });
+    const ctrl = await newController(fake, 5, 10);
+    await ctrl.postMortem(makeState({ score: 700 }), 1);
+    fake.lastPayload = "";
+    const params = await ctrl.openingStrategy(makeState());
+    assert.equal(params?.roombaFirst, false);
+    assert.equal(params?.dodgeHorizonS, 1.2);
+    assert.ok(fake.lastPayload.includes("A new session is starting."));
+    assert.ok(fake.lastPayload.includes('"lessons"'), "persisted memory must be sent");
+    assert.ok(fake.lastPayload.includes('"score":700'), "past games must be sent");
+    await rm(tmpFile, { force: true });
+  });
+
+  it("wave re-plan sends the cleared wave and returns tuned params", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new FakeClient();
+    fake.answer = JSON.stringify({
+      params: { dodgeHorizonS: 1.2 },
+      notes: "next wave: camp left",
+      memory: { plan: "left camp" },
+    });
+    const ctrl = await newController(fake, 5, 10);
+    fake.lastPayload = "";
+    const params = await ctrl.wavePlan(makeState({ wave: 3 }));
+    assert.equal(params?.dodgeHorizonS, 1.2);
+    assert.ok(fake.lastPayload.includes("Wave 3 cleared"), "the cleared wave must be named");
+    assert.ok(fake.lastPayload.includes('"wave":3'), "the state must be sent");
     await rm(tmpFile, { force: true });
   });
 });

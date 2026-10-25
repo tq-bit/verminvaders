@@ -31,6 +31,7 @@ export class Harness {
   private prevState: GameState | null = null;
   private nextStrategyAt = 0;
   private epochNeedsStart = true;
+  private wavePlanPending = false;
 
   constructor(
     conn: Connection,
@@ -80,7 +81,8 @@ export class Harness {
         return;
       }
       if (s.phase === "waveclear") {
-        return; // no commands during the intermission
+        await this.handleWavePlan(s); // re-plan during the intermission
+        return; // no commands while the wave-clear banner shows
       }
       if (this.strategy) {
         if (this.epochNeedsStart) {
@@ -149,6 +151,25 @@ export class Harness {
     }
   }
 
+  // Wave intermission: pause the frozen banner, let Mistral retune for the
+  // incoming wave, apply the params, resume. Runs once per cleared wave.
+  private async handleWavePlan(s: GameState): Promise<void> {
+    if (!this.wavePlanPending || !this.strategy) return;
+    this.wavePlanPending = false;
+    this.log(`wave ${s.wave} cleared; asking Mistral for the next wave's strategy...`);
+    await this.conn.pause();
+    try {
+      const fresh = await this.conn.readState();
+      const params = await this.strategy.wavePlan(fresh);
+      if (params) {
+        (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
+      }
+    } finally {
+      // watchdog: a crash in the LLM path must never leave the game frozen
+      await this.conn.resume().catch(() => {});
+    }
+  }
+
   private policyReason(): string {
     const p = this.policy as unknown as { lastReason?: string };
     return p.lastReason ?? "";
@@ -171,11 +192,21 @@ export class Harness {
       this.stop();
       return;
     }
+    // opening consultation: the first game starts on model-tuned params
+    // informed by persisted memory, not on executor defaults
+    if (this.gamesStarted === 0 && this.strategy) {
+      this.log("asking Mistral for an opening strategy...");
+      const params = await this.strategy.openingStrategy(s);
+      if (params) {
+        (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
+      }
+    }
     await this.conn.start();
     this.gamesStarted++;
     this.policy.reset();
     this.stats.gameStartEvent(Date.now(), s.wave, s.lives);
     this.epochNeedsStart = true;
+    this.wavePlanPending = false;
     this.persona.event("gameStart");
   }
 
@@ -193,6 +224,7 @@ export class Harness {
         this.persona.event("roombaHit", `(+${s.score - prev.score})`);
       }
       if (prev.phase === "playing" && s.phase === "waveclear") {
+        this.wavePlanPending = true; // ask for a next-wave plan during the banner
         const sum = this.stats.waveSummary(Date.now(), s.score, s.lives);
         this.cb.onWaveSummary?.(sum.wave, sum.score, sum.lives, sum.durationS);
         this.persona.event("waveClear", `(wave ${sum.wave}, score ${sum.score})`);

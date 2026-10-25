@@ -17,6 +17,12 @@ export const DEFAULT_EXECUTOR_PARAMS: ExecutorParams = {
   acceptHitBelowS: 0.25,
   corridorMarginPx: 8,
   columnSpreadWeight: 0,
+  rowWeights: [1, 1, 1, 1, 1],
+  colAvoid: [0, 0, 0, 0, 0, 0, 0, 0],
+  livesRisk: [5, 5, 5],
+  exploration: 0,
+  aimJitterPx: 0,
+  rngSeed: 0,
 };
 
 export const DEFAULT_DODGE_PARAMS: DodgeParams = { horizonS: 1.6, acceptBelowS: 0.25 };

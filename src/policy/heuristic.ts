@@ -18,17 +18,35 @@ import {
 } from "./aim.ts";
 import { planDodge, threateningCrumbs } from "./dodge.ts";
 import { hotCorridors, inHot } from "./hot-corridors.ts";
+import { mulberry32 } from "./rng.ts";
+
+// Per-row urgency, per-column targeting penalty and per-lives risk appetite
+// derived from the structured params. livesRisk: 5 = neutral, 0 = defensive
+// (avoid blocked corridors, dodge late hits), 10 = aggressive (chew shields,
+// accept hits). Both formulas scale around 1.0 at risk 5.
+function effectiveShieldPenalty(p: ExecutorParams, lives: number): number {
+  const risk = p.livesRisk[Math.max(0, Math.min(2, lives - 1))] ?? 5;
+  return p.shieldPenalty * (1.5 - risk / 10);
+}
+
+function effectiveAcceptBelowS(p: ExecutorParams, lives: number): number {
+  const risk = p.livesRisk[Math.max(0, Math.min(2, lives - 1))] ?? 5;
+  return Math.max(0.05, Math.min(0.5, p.acceptHitBelowS * (0.5 + risk / 10)));
+}
 
 export class HeuristicPolicy implements Policy {
   private params: ExecutorParams = { ...DEFAULT_EXECUTOR_PARAMS };
   // x positions where we intentionally chewed a shield hole this wave
   private holes: number[] = [];
   private wave = 0;
+  // seeded stream for exploration sampling and aim jitter
+  private rng: () => number = mulberry32(0);
   // for observability: why the last decision was what it was
   lastReason = "";
 
   constructor(params?: Partial<ExecutorParams>) {
     this.setParams(params);
+    this.rng = mulberry32(this.params.rngSeed);
   }
 
   setParams(params?: Partial<ExecutorParams>): void {
@@ -43,6 +61,8 @@ export class HeuristicPolicy implements Policy {
     this.holes = [];
     this.wave = 0;
     this.lastReason = "";
+    // fresh stream per game: the same seed replays the same game
+    this.rng = mulberry32(this.params.rngSeed);
   }
 
   decide(s: GameState): Decision {
@@ -55,7 +75,7 @@ export class HeuristicPolicy implements Policy {
     // 1. dodging wins over aiming: a saved life buys future shots
     const dodgeX = planDodge(s, {
       horizonS: this.params.dodgeHorizonS,
-      acceptBelowS: this.params.acceptHitBelowS,
+      acceptBelowS: effectiveAcceptBelowS(this.params, s.lives),
     });
     if (dodgeX !== null) {
       this.lastReason = "dodge";
@@ -136,16 +156,19 @@ export class HeuristicPolicy implements Policy {
   }
 
   // Target rodents: predicted center at impact, muzzle offset compensation,
-  // free-corridor preference, lowest row first (they end the game first).
+  // free-corridor preference, per-row urgency and per-column avoidance.
+  // Candidates are scored, then either taken as argmax (exploration 0) or
+  // sampled among the top 3 (exploration > 0, seeded RNG).
   private planRodent(s: GameState): ShotPlan | null {
     if (!s.rods.length) return null;
     const hot = hotCorridors(s, this.params);
+    const shieldPenalty = effectiveShieldPenalty(this.params, s.lives);
     // live rodents per column: killing a column's last rodent concentrates
     // the enemy's random fire into the remaining columns (it picks a
     // uniformly random live rodent per shot)
     const colAlive = new Array<number>(s.formation.cols).fill(0);
     for (const r of s.rods) colAlive[r.col]++;
-    let best: (ShotPlan & { score: number }) | null = null;
+    const candidates: Array<ShotPlan & { score: number }> = [];
 
     for (const r of s.rods) {
       const flightT = flightTime(r.y + r.h / 2);
@@ -154,7 +177,10 @@ export class HeuristicPolicy implements Policy {
       const arrive = glideTime(s.cat.x, catX);
       // predict the formation's march during glide + flight
       const gx = predictFormationX(s, arrive + flightT);
-      const targetX = gx + r.col * s.formation.stepX + r.w / 2;
+      // aim jitter: a seeded random offset makes the executor imperfect
+      const jitter =
+        this.params.aimJitterPx > 0 ? (this.rng() * 2 - 1) * this.params.aimJitterPx : 0;
+      const targetX = gx + r.col * s.formation.stepX + r.w / 2 + jitter;
       const finalCatX = clampCatX(targetX - MUZZLE_OFFSET);
       const finalArrive = glideTime(s.cat.x, finalCatX);
       if (finalArrive > flightT * MIN_LEAD_MARGIN) continue; // unreachable
@@ -162,32 +188,39 @@ export class HeuristicPolicy implements Policy {
       const shotX = finalCatX + MUZZLE_OFFSET;
       const blocked = corridorBlocked(s, shotX, r.y + r.h / 2, this.holes);
       const isHot = inHot(finalCatX, hot);
-      // deeper rodents are more urgent; free, clean corridors are preferred
-      let score = r.y * this.params.lowestRowWeight + r.points * this.params.pointsWeight;
-      if (blocked) score -= this.params.shieldPenalty;
+      // deeper rodents are more urgent, weighted per row; free, clean
+      // corridors are preferred; colAvoid steers targeting away from columns
+      let score =
+        r.y * this.params.lowestRowWeight * (this.params.rowWeights[r.row] ?? 1) +
+        r.points * this.params.pointsWeight -
+        (this.params.colAvoid[r.col] ?? 0) * 100;
+      if (blocked) score -= shieldPenalty;
       if (isHot) score -= 2000;
       if (colAlive[r.col] <= 1) score -= this.params.columnSpreadWeight * 100;
-      if (best === null || score > best.score) {
-        best = {
-          kind: "rodent",
-          catX: finalCatX,
-          shotX,
-          flightT,
-          blocked,
-          hot: isHot,
-          score,
-        };
-      }
+      candidates.push({
+        kind: "rodent",
+        catX: finalCatX,
+        shotX,
+        flightT,
+        blocked,
+        hot: isHot,
+        score,
+      });
     }
-    if (!best) return null;
-    return {
-      kind: "rodent",
-      catX: best.catX,
-      shotX: best.shotX,
-      flightT: best.flightT,
-      blocked: best.blocked,
-      hot: best.hot,
-    };
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => b.score - a.score);
+    const best = this.pickCandidate(candidates);
+    const { score: _score, ...plan } = best;
+    return plan;
+  }
+
+  // Exploration sampling: with probability 0.25 * exploration/10 swap the
+  // argmax pick for the 2nd (60%) or 3rd (40%) best candidate. Seeded, so a
+  // fixed rngSeed replays the same choices; exploration 0 stays deterministic.
+  private pickCandidate<T>(top: Array<T>): T {
+    const e = this.params.exploration / 10;
+    if (e <= 0 || top.length < 2 || this.rng() >= 0.25 * e) return top[0];
+    return this.rng() < 0.6 ? top[1] : (top[2] ?? top[1]);
   }
 
   private arrived(catX: number, targetX: number): boolean {

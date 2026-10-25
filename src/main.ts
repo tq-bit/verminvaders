@@ -63,7 +63,9 @@ async function main(): Promise<void> {
   }
 
   const conn = new Connection(page);
-  const policy = new HeuristicPolicy();
+  // env-seeded executor RNG: same seed replays the same play (the model may
+  // still retune rngSeed in its strategy answers)
+  const policy = new HeuristicPolicy({ rngSeed: intEnv("VERMINVADERS_RNG_SEED", 0) });
   const opts: RunOptions = {
     mode: args.mode,
     pollMs: args.pollMs,
@@ -100,6 +102,11 @@ async function main(): Promise<void> {
           console.log(
             c.green(
               `[${args.model}] params: roombaFirst=${params.roombaFirst} rowW=${params.lowestRowWeight} ptsW=${params.pointsWeight} shieldPen=${params.shieldPenalty} chew=${params.chewShields} dodgeH=${params.dodgeHorizonS}s accept=${params.acceptHitBelowS}s margin=${params.corridorMarginPx}px colSpreadW=${params.columnSpreadWeight}`,
+            ),
+          );
+          console.log(
+            c.green(
+              `[${args.model}] levers: rowWeights=${params.rowWeights.join("/")} colAvoid=${params.colAvoid.join("/")} livesRisk=${params.livesRisk.join("/")} exploration=${params.exploration} aimJitter=${params.aimJitterPx}px seed=${params.rngSeed}`,
             ),
           );
         },

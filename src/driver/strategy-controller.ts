@@ -72,6 +72,20 @@ export class StrategyController {
     this.epochTracker.reset(s, Date.now());
   }
 
+  // Opening consultation (once per session, before the first game): the model
+  // picks its starting params from persisted memory and past games, instead
+  // of the executor opening on factory defaults.
+  async openingStrategy(s: GameState): Promise<ExecutorParams | null> {
+    return this.askModel(
+      "A new session is starting. Set your opening strategy.",
+      {
+        state: compactState(s),
+        memory: this.memory.memory,
+        previousGames: this.recentGames(),
+      },
+    );
+  }
+
   // Epoch update: returns tuned executor params (or null to keep current).
   async epochUpdate(s: GameState): Promise<ExecutorParams | null> {
     const report = this.epochTracker.report(s, Date.now());
@@ -79,6 +93,19 @@ export class StrategyController {
       `Epoch ${report.epoch} finished. Adjust your strategy.`,
       {
         epochReport: report,
+        state: compactState(s),
+        memory: this.memory.memory,
+        previousGames: this.recentGames(),
+      },
+    );
+  }
+
+  // Wave intermission: the model retunes for the incoming wave (deeper start,
+  // faster fire) before play resumes.
+  async wavePlan(s: GameState): Promise<ExecutorParams | null> {
+    return this.askModel(
+      `Wave ${s.wave} cleared. Retune your strategy for the next wave.`,
+      {
         state: compactState(s),
         memory: this.memory.memory,
         previousGames: this.recentGames(),

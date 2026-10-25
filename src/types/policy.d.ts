@@ -27,6 +27,19 @@ export interface ExecutorParams {
   acceptHitBelowS: number;
   corridorMarginPx: number;
   columnSpreadWeight: number;
+  // structured levers (neutral defaults keep legacy behavior)
+  /** per-row urgency multipliers, index = row (0 = top/rats), length 5 */
+  rowWeights: number[];
+  /** per-column targeting penalty 0..10, index = column, length 8 */
+  colAvoid: number[];
+  /** risk appetite at 3/2/1 lives, 0..10, 5 = neutral */
+  livesRisk: number[];
+  /** 0 = always the best target; up to 10 = increasingly sample 2nd/3rd-best */
+  exploration: number;
+  /** random aim error in px; 0 = perfectly deterministic aiming */
+  aimJitterPx: number;
+  /** seed for the executor RNG; identical seeds replay identical games */
+  rngSeed: number;
 }
 
 export interface ShotPlan {

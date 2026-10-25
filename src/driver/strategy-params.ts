@@ -10,6 +10,13 @@ function clamp(v: unknown, min: number, max: number, fallback: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+// Fixed-length number arrays from untrusted model input: pad missing entries
+// with the fallback, clamp the rest, drop extras.
+function clampArray(raw: unknown, len: number, min: number, max: number, fallback: number): number[] {
+  const arr = Array.isArray(raw) ? (raw as unknown[]) : [];
+  return Array.from({ length: len }, (_, i) => clamp(arr[i], min, max, fallback));
+}
+
 export function normalizeParams(raw: unknown): ExecutorParams {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
@@ -22,6 +29,12 @@ export function normalizeParams(raw: unknown): ExecutorParams {
     acceptHitBelowS: clamp(r.acceptHitBelowS, 0.05, 0.5, DEFAULT_EXECUTOR_PARAMS.acceptHitBelowS),
     corridorMarginPx: clamp(r.corridorMarginPx, 4, 20, DEFAULT_EXECUTOR_PARAMS.corridorMarginPx),
     columnSpreadWeight: clamp(r.columnSpreadWeight, 0, 10, DEFAULT_EXECUTOR_PARAMS.columnSpreadWeight),
+    rowWeights: clampArray(r.rowWeights, 5, 0, 10, 1),
+    colAvoid: clampArray(r.colAvoid, 8, 0, 10, 0),
+    livesRisk: clampArray(r.livesRisk, 3, 0, 10, 5),
+    exploration: clamp(r.exploration, 0, 10, 0),
+    aimJitterPx: clamp(r.aimJitterPx, 0, 10, 0),
+    rngSeed: typeof r.rngSeed === "number" && Number.isFinite(r.rngSeed) ? r.rngSeed : 0,
   };
 }
 
