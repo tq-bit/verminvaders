@@ -12,6 +12,7 @@
   const CAT_Y = H - 64;
   let catX = W / 2, catTarget = null, pointerDown = false;
   let invuln = 0, flipT = 0, blinkSeed = Math.random() * 10;
+  let mouthT = 0; // >0: the cat just spat a furball, mouth slightly open
   let furballs = [], crumbs = [], parts = [], rods = [], shields = [], roomba = null;
   let gx = 52, gy = 84, dir = 1, bob = false, marchT = 0, fireT = 1, roombaT = 9;
   let paused = false, msgT = 0, overMsg = "", last = 0, time = 0;
@@ -138,6 +139,7 @@
   function shoot() {
     if (furballs.length >= 1) return; // classic: one furball at a time
     furballs.push({ x: catX + 18, y: CAT_Y - 16, vy: -430, r: 4 });
+    mouthT = 0.18; // brief open-mouth beat as the furball leaves the muzzle
   }
 
   // ---------- particles ----------
@@ -181,6 +183,7 @@
 
     invuln = Math.max(0, invuln - dt);
     flipT = Math.max(0, flipT - dt);
+    mouthT = Math.max(0, mouthT - dt);
 
     // furballs
     furballs = furballs.filter(function (b) {
@@ -475,6 +478,13 @@
     // occasional blink: the black eye dots in row 5 go orange for a beat
     if (((time + blinkSeed) % 3.7) < 0.16) {
       f = f.map(function (row, i) { return i === 5 ? row.replace(/K/g, "O") : row; });
+    }
+    // open mouth on spit: two black pixels in the muzzle row (cols 16-17,
+    // right where the furball leaves the face), just under the nose
+    if (mouthT > 0) {
+      f = f.map(function (row, i) {
+        return i === 7 ? row.slice(0, 16) + "KK" + row.slice(18) : row;
+      });
     }
     spr(f, CAT_PAL, x - 33, y - 36, 3);
     ctx.restore();
