@@ -250,6 +250,64 @@ describe("HeuristicPolicy dodge commitment", () => {
     const fresh = new HeuristicPolicy().decide(makeState({ crumbs: [crumb] }));
     assert.equal(d2.moveTo, fresh.moveTo);
   });
+
+  // Crumb falling directly at the cat while the best shot sits across its
+  // corridor: the commitment must outlive the moment the fleeing cat leaves
+  // the crumb's overlap band, or aiming walks it back under the crumb and
+  // the dodge re-triggers every tick (the left-right jitter).
+  const farRod = { x: 360, y: 228, w: 30, h: 24, row: 4, col: 7, rat: false, points: 10 };
+
+  it("holds the dodge after the cat has left the crumb's overlap band", () => {
+    const p = freshPolicy();
+    const d1 = p.decide(makeState({ crumbs: [crumb] })); // commit at x=240
+    assert.ok(d1.moveTo !== undefined);
+    const target = d1.moveTo as number;
+    // mid-glide: the crumb no longer overlaps the cat, but it is still
+    // coming down on the corridor the cat fled — the aim target (far right)
+    // must not pull it back through the corridor
+    const d2 = p.decide(
+      makeState({
+        crumbs: [{ ...crumb, y: 402 }],
+        cat: catAt(target),
+        rods: [farRod],
+      }),
+    );
+    assert.equal(d2.moveTo, target);
+    assert.equal(p.lastReason, "dodge");
+  });
+
+  it("keeps holding while the crumb is still inside the hit band", () => {
+    const p = freshPolicy();
+    const d1 = p.decide(makeState({ crumbs: [crumb] }));
+    const target = d1.moveTo as number;
+    // crumb at y=517: still sweeping the fled corridor (hit band 502..536)
+    const d2 = p.decide(
+      makeState({
+        crumbs: [{ ...crumb, y: 517 }],
+        cat: catAt(target),
+        rods: [farRod],
+      }),
+    );
+    assert.equal(d2.moveTo, target);
+    assert.equal(p.lastReason, "dodge");
+  });
+
+  it("resumes aiming once the crumb has swept past the cat band", () => {
+    const p = freshPolicy();
+    const d1 = p.decide(makeState({ crumbs: [crumb] }));
+    const target = d1.moveTo as number;
+    // crumb below the cat baseline: the fled corridor is safe again
+    const d2 = p.decide(
+      makeState({
+        crumbs: [{ ...crumb, y: 540 }],
+        cat: catAt(target),
+        rods: [farRod],
+      }),
+    );
+    assert.ok(d2.moveTo !== undefined);
+    assert.notEqual(d2.moveTo, target); // aim target on the far side
+    assert.notEqual(p.lastReason, "dodge");
+  });
 });
 
 describe("HeuristicPolicy travelCost", () => {

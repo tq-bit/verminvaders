@@ -66,7 +66,18 @@ async function main(): Promise<void> {
 
   try {
     browser = await chromium.launch({ headless: !args.headed });
-    page = await browser.newPage();
+    if (args.videoDir) {
+      // record the canvas area: 480x600 plus the 2px css border on each side
+      const context = await browser.newContext({
+        viewport: { width: 484, height: 604 },
+        recordVideo: { dir: args.videoDir, size: { width: 484, height: 604 } },
+      });
+      page = await context.newPage();
+      // the click hint is for humans at a keyboard, not for a recording
+      await page.addStyleTag({ content: ".hint { display: none }" });
+    } else {
+      page = await browser.newPage();
+    }
     await page.goto(url);
   } catch (e) {
     console.error(`[harness] failed to launch browser: ${(e as Error).message}`);
@@ -152,7 +163,14 @@ async function main(): Promise<void> {
     );
     await harness.run();
   } finally {
+    // the video file is finalized when the context closes: keep the handle,
+    // close, then report where the recording landed
+    const video = page?.video();
     await browser.close().catch(() => {});
+    if (video) {
+      const file = await video.path().catch(() => null);
+      if (file) console.log(c.blue(`[harness] recording saved: ${file}`));
+    }
     server.close();
   }
 }

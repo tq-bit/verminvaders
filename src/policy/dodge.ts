@@ -66,6 +66,14 @@ export function isSafeSpot(s: GameState, x: number, crumbs: Crumb[]): boolean {
   return true;
 }
 
+// Is x inside any falling crumb's corridor, regardless of timing? Unlike
+// isSafeSpot this has no arrival-time allowance: the corridor stays
+// hazardous until the crumb has actually swept past it, so a cat walking
+// back in early cannot be clipped on the way.
+export function corridorThreatened(x: number, crumbs: Crumb[]): boolean {
+  return crumbs.some((c) => corridorOverlap(c, x));
+}
+
 // Nearest x the cat can glide to that no falling crumb will reach.
 // Checks each crumb's position at the cat's arrival time.
 export function findSafeX(s: GameState, crumbs: Crumb[]): number | null {

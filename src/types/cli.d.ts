@@ -18,4 +18,6 @@ export interface Args {
   thinking: boolean;
   /** run the interactive setup wizard when stdin is a TTY */
   prompt: boolean;
+  /** record the browser viewport into this directory when set */
+  videoDir?: string;
 }

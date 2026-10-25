@@ -55,6 +55,7 @@ export function parseArgs(argv: string[]): Args {
     .option("--no-llm", "skip all API calls; the executor plays with default parameters")
     .option("--no-thinking", "hide the model's reasoning; show a Strategizing indicator instead")
     .option("--no-prompt", "skip the interactive setup wizard")
+    .option("--video [dir]", "record the gameplay into <dir> (default: videos)", String, "videos")
     .exitOverride((err) => {
       // --help / -h print and exit cleanly; everything else is a thrown error
       if (err.code === "commander.helpDisplayed" || err.code === "commander.version") process.exit(0);
@@ -84,5 +85,6 @@ export function parseArgs(argv: string[]): Args {
     noLlm: o.llm === false,
     thinking: o.thinking !== false,
     prompt: o.prompt !== false,
+    videoDir: o.video ? path.resolve(String(o.video)) : undefined,
   };
 }
