@@ -289,6 +289,51 @@ record, retunes the weights, and the executor plays differently.**
   (`exploration`, `aimJitterPx`, `rngSeed`), the executor applies it
   locally and deterministically.
 
+## Game difficulty profile
+
+Short verdict: **wave 1 alone is genuinely hard, and the difficulty curve
+is steepest exactly where players die — the last few rodents.**
+All numbers from `app/game.js`.
+
+- **Throughput bottleneck (core difficulty).** One furball at a time at
+  430 px/s means ~0.7–1.5 s per shot once repositioning is counted (the
+  cat glides at 322 px/s; a full-arena crossing costs 1.3 s). Wave 1 has
+  40 rodents, so a *clean* clear needs roughly 60–100 s of uninterrupted
+  shooting — all while dodging.
+- **Fire pressure.** Wave 1 fires every `max(0.28, 1.15 · (0.4+0.7·rand))`
+  ≈ 0.5–1.3 s, from a uniformly random live rodent's column. Crumbs fall
+  at 144 px/s with ~2.8 s airtime → ~3 crumbs airborne at once on
+  average. Per-shot randomness makes dodging reactive, not predictable —
+  the strategist can only steer it statistically.
+- **Endgame acceleration — the killer.**
+  `marchInterval = max(0.06, 0.5 × alive/40)`: the full formation steps
+  every 0.5 s, but at 4 rodents alive the march runs at the 0.06 s floor —
+  roughly **200 px/s horizontally**, with a 16 px drop at every wall
+  pass. Crucially the **fire rate does not scale down with the alive
+  count** — the same crumb stream keeps coming, just concentrated into
+  fewer columns (exactly what `crumbSpawnCols` shows). Row 4 starts
+  282 px above the lasagna line (~18 drops to lose).
+- **Lives are thin.** 3 lives, 2 s invuln, ±30 px hitbox. Against ~0.7
+  crumbs/s over a 60–90 s clear, one dodge failure in thirty is fatal
+  three times over.
+- **Wave scaling compounds it.** Each wave starts 8 px lower (capped at
+  +32), crumbs fall `130+14·wave` px/s, the fire interval shrinks to a
+  0.28 s floor by wave ~13, and the march factor floors at 0.55 by
+  wave ~9 (45% faster even at full formation).
+
+**Empirical calibration**: the harness went 0/3 on wave 1 in its first
+session — but reached 36+/40 rodents twice. It dies in the endgame, where
+the curve peaks against its fixed throughput. The strategist's counter
+levers are `columnSpreadWeight` (dilute fire), `livesRisk` (aggression at
+1 life), and `travelCost` (stop spending the throughput budget on
+cross-arena walks).
+
+**Design note**: the asymmetry — enemy *offense* never weakens while the
+player's *targets* get faster — is deliberate and is arguably the point
+of the challenge. If it ever needs softening, the single most effective
+change is scaling the fire interval with `alive/total` like the march
+does.
+
 ## The dodge jitter (decision flapping) — analyzed and fixed
 
 **The symptom.** When a crumb is close, the cat often gaits
@@ -401,5 +446,5 @@ to "will it use it?" — run the three arms above to find out.
 | Strategy integration | `src/driver/strategy-controller.ts`, `src/prompts/system-prompt.ts` (the model-facing system prompt), `strategy-prompt.ts` (state compaction), `strategy-params.ts`, `strategy-response.schema.json` (strict API contract), `epoch-tracker.ts` |
 | Orchestration | `src/driver/driver.ts` (tick loop, phases, consultation moments), `connection.ts` (Playwright bridge), `stats.ts` |
 | Entry point | `src/main.ts` (wiring, env, callbacks) |
-| Config | `src/constants/policy.ts` (defaults), `src/.env` (seed, limits, API key), `src/ui/cli.ts` (flags) |
+| Config | `src/constants/policy.ts` (defaults), `src/.env` (API key, RNG seed, context/memory limits, max tokens), `src/ui/cli.ts` (flags) |
 | Tests | `src/tests/` — `npm test`, `npm run typecheck` |

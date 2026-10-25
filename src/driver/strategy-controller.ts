@@ -21,6 +21,7 @@ import { DEFAULT_STRATEGY_LIMITS } from "../constants/index.ts";
 import { compactState } from "./strategy-prompt.ts";
 import { systemPrompt } from "../prompts/system-prompt.ts";
 import { normalizeParams, parseStrategyResponse } from "./strategy-params.ts";
+import { intEnv } from "../ui/cli.ts";
 import { EpochTracker } from "./epoch-tracker.ts";
 
 export class StrategyController {
@@ -193,7 +194,7 @@ export class StrategyController {
         messages,
         {
           ...(schema ? { responseSchema: schema } : { json: true }),
-          maxTokens: 12000,
+          maxTokens: intEnv("VERMINVADERS_MAX_TOKENS", 12000),
         },
         (kind, delta) => {
           if (kind === "thinking") this.cb.onThinkingDelta?.(delta);

@@ -42,6 +42,7 @@ describe("strategy response schema", () => {
 // Fake chat client: returns canned JSON and records the last user payload.
 class FakeClient {
   lastPayload = "";
+  lastOpts: Record<string, unknown> | null = null;
   answer = JSON.stringify({
     params: {},
     notes: "tuned",
@@ -49,8 +50,9 @@ class FakeClient {
     memory: { clean: true },
   });
 
-  async chat(messages: Array<{ role: string; content: string }>): Promise<string> {
+  async chat(messages: Array<{ role: string; content: string }>, opts: Record<string, unknown> = {}): Promise<string> {
     this.lastPayload = messages[1].content;
+    this.lastOpts = opts;
     return this.answer;
   }
 }
@@ -201,6 +203,25 @@ describe("StrategyController per-game summaries and limits", () => {
     assert.ok(fake.lastPayload.includes("A new session is starting."));
     assert.ok(fake.lastPayload.includes('"lessons"'), "persisted memory must be sent");
     assert.ok(fake.lastPayload.includes('"score":700'), "past games must be sent");
+    await rm(tmpFile, { force: true });
+  });
+
+  it("sends the env-configured max tokens to the client", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new FakeClient();
+    const ctrl = await newController(fake, 5, 10);
+    const prev = process.env.VERMINVADERS_MAX_TOKENS;
+    process.env.VERMINVADERS_MAX_TOKENS = "999";
+    try {
+      await ctrl.openingStrategy(makeState());
+      assert.equal(fake.lastOpts?.maxTokens, 999);
+      process.env.VERMINVADERS_MAX_TOKENS = "";
+      await ctrl.openingStrategy(makeState());
+      assert.equal(fake.lastOpts?.maxTokens, 12000, "empty value must fall back to the default");
+    } finally {
+      if (prev === undefined) delete process.env.VERMINVADERS_MAX_TOKENS;
+      else process.env.VERMINVADERS_MAX_TOKENS = prev;
+    }
     await rm(tmpFile, { force: true });
   });
 
