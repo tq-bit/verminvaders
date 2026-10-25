@@ -41,7 +41,7 @@
   // ---------- state ----------
   let state = "title"; // title | playing | waveclear | gameover
   let score = 0, wave = 1, lives = 3, hi = 0;
-  try { hi = parseInt(localStorage.getItem("verminvaders-hi") || localStorage.getItem("purrvaders-hi") || "0", 10) || 0; } catch (e) {}
+  try { hi = parseInt(localStorage.getItem("verminvaders-hi") || "0", 10) || 0; } catch (e) {}
 
   const CAT_Y = H - 64;
   let catX = W / 2, catTarget = null, pointerDown = false;
@@ -808,7 +808,6 @@
     resume: function () { paused = false; return true; },
     togglePause: function () { paused = !paused; return true; }
   };
-  window.purrvaders = window.verminvaders; // legacy alias
 
   // ---------- loop ----------
   function loop(ts) {

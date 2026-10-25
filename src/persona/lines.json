@@ -1,0 +1,82 @@
+{
+  "faces": [
+    "(=^\u00b7\u03c9\u00b7^=)",
+    "(=\u03a6w\u03a6=)",
+    "( -.-) zzz",
+    "(=\u2022\u1d25\u2022=)",
+    "(=\u0424_\u0424=)",
+    "(=x\u00b7x=)"
+  ],
+  "lines": {
+    "boot": [
+      "Ugh. Who scheduled an invasion during my 14th nap?",
+      "I'm not fat, I'm portable lasagna security.",
+      "Fine. I'll defend the lasagna. But this counts as cardio.",
+      "Loading tactical belly... done. It was already loaded.",
+      "Rodents again? I hope they brought snacks. For me.",
+      "Alert: vermin detected. Belly: ready. Enthusiasm: pending."
+    ],
+    "gameStart": [
+      "Paws on deck. The lasagna shall not fall!",
+      "They came for the lasagna. They leave as furballs.",
+      "Time to furball some freeloaders off my carpet.",
+      "My diet plan for today: mice. Low carb. High protein.",
+      "Engaging enemy. Slowly. I just ate.",
+      "Operation Tummy Shield is a go."
+    ],
+    "waveClear": [
+      "Wave down. Napping resumes in... oh. More of them.",
+      "Is it dinner yet? I cleared a whole wave.",
+      "Forty rodents. Zero lasagna lost. I demand tuna.",
+      "That's how a professional does it. Now scratch my ears.",
+      "Cleared. Can someone refill my bowl while I work?",
+      "Wave schmaved. Bring on the next batch."
+    ],
+    "roombaHit": [
+      "BOOM. Roomba rodeo! That general owes me a tuna.",
+      "Two hundred points AND a clean floor? I'm efficient.",
+      "That rat general just got evicted. By me. The landlord.",
+      "Direct hit! I'd celebrate, but I'm mid-snack.",
+      "Scratch that ride, general. This is my house.",
+      "Ka-ching. I'll spend it all on snacks."
+    ],
+    "lifeLost": [
+      "Ouch! That crumb had opinions. Rude.",
+      "I meant to do that. Tactical belly absorption.",
+      "Hey! Only I get to throw food around here!",
+      "That one tickled. Angrily.",
+      "Losing a life. Worth it: I dodge nothing before lunch.",
+      "Note to self: crumbs are not edible when they fly at you."
+    ],
+    "dodge": [
+      "You can't hit the blob. The blob is wise.",
+      "Sidestep! I learned that from the Roomba.",
+      "Too slow, crumb. I may be round, but I'm quick.",
+      "My aerodynamics are surprisingly excellent.",
+      "Missed me! Now hold still, I'm tired.",
+      "Weaving. Weaving. Perfectly balanced. As all cats should be."
+    ],
+    "idle": [
+      "Still defending. Still hungry.",
+      "Any lasagna thieves left? I have spare furballs.",
+      "This counts as exercise. Tell my vet.",
+      "Standing guard. Sitting guard. Lying-down guard.",
+      "I could really use a snack break. After this wave.",
+      "Plotting. Slowly. Menacingly."
+    ],
+    "gameOver": [
+      "The lasagna... it fell. I need a moment. And a snack.",
+      "Ugh. Add that to the list of things I did for food.",
+      "Game over?! I was just warming up my belly!",
+      "Fine, rodents. You win this round of chess.",
+      "Even heroes need nap breaks. Long ones."
+    ],
+    "sessionEnd": [
+      "Session over. Payment in tuna, as usual.",
+      "That's all, folks. The fat cat is officially off duty.",
+      "I did my part. Where's my treat?",
+      "Retreating to my blanket. Legacy intact. Belly fuller.",
+      "Logging off. Do NOT touch the lasagna while I'm gone."
+    ]
+  }
+}

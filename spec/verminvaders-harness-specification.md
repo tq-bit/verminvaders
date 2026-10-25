@@ -55,7 +55,7 @@ All controls return `true` on success, `false` on a no-op. Never throw.
 
 ### 3.3 Legacy alias
 
-`window.purrvaders` is the same object (pre-rename alias). New code must use `verminvaders`.
+Removed. The pre-rename `window.purrvaders` alias no longer exists; all code must use `verminvaders`.
 
 ## 4. Game constants the policy needs
 
@@ -112,7 +112,7 @@ The implementation must at minimum encode this baseline; refinements are welcome
 
 **Dodging.** A crumb threatens the cat if its x-range overlaps `cat.x ± 30` while `invuln === 0`. With time-to-impact \((502 - c.y) / c.vy\), dodge via `moveTo` to the nearest safe corridor if time > 0.25 s; below that, accept the hit (3 lives, invulnerability follows). Suppress dodging decisions that would walk the cat out of an aimed shot.
 
-## 7. Connection architecture (choose one, prefer A)
+## 7. Connection architecture (B chosen — terminal driver)
 
 - **A. In-page agent (preferred):** a standalone JS module injected into the game page (console, bookmarklet, or `<script>` appended to the exported HTML). Runs the decision loop with `setInterval`. No dependencies, no browser automation needed. Structure the module so the policy is importable/unit-testable outside the page.
 - **B. External driver:** Node.js + Playwright/Puppeteer. Load the game page (serve via `http://localhost` — some browsers restrict `localStorage` on `file://`, though the game degrades gracefully), then run `decide` in Node against snapshots pulled via `page.evaluate(() => verminvaders.state())`, pushing commands back the same way. Account for ~5–20 ms round-trip latency; considered mode (§5.1) is recommended here.
