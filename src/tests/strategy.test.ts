@@ -255,8 +255,7 @@ describe("StrategyController per-game summaries and limits", () => {
     await rm(tmpFile, { force: true });
   });
 
-  it("lastKnownParams warm-starts a new session on the model's last params", async () => {
-    await rm(tmpFile, { force: true });
+  it("lastKnownParams warm-starts a new session on the model's last params", async () => {    await rm(tmpFile, { force: true });
     const fake = new FakeClient();
     const ctrl = await newController(fake, 5, 3);
     assert.equal(ctrl.lastKnownParams(), null, "a fresh brain has no last-known params");
@@ -386,6 +385,51 @@ describe("StrategyController per-game summaries and limits", () => {
     await rm(tmpFile, { force: true });
   });
 
+  it("names the current round in every payload and archives each round's strategy at the post-mortem", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new FakeClient();
+    // the round-1 strategy the model currently has in memory
+    fake.answer = JSON.stringify({
+      params: { dodgeHorizonS: 1.0 },
+      notes: "round 1 tuning",
+      memory: { round1: { baseline: "camp left", history: ["wave 1 died"] } },
+    });
+    const ctrl = await newController(fake, 5, 10);
+    ctrl.beginGame(1);
+    ctrl.startEpoch(makeState());
+    await ctrl.epochUpdate(makeState());
+    assert.ok(fake.lastPayload.includes('"game":1'), "payloads must name the round");
+
+    // post-mortem: the round-1 strategy is archived with the record, the
+    // cleaned memory becomes the live one for round 2
+    fake.answer = JSON.stringify({
+      params: { dodgeHorizonS: 1.5 },
+      notes: "cleaned for round 2",
+      gameSummary: "died wave 1, widen margins",
+      memory: { lessons: ["dodge earlier"] },
+    });
+    await ctrl.postMortem(makeState({ score: 480, lives: 0 }), 1);
+
+    const saved = JSON.parse(await readFile(tmpFile, "utf-8"));
+    assert.equal(saved.memory.lessons.length, 1, "live memory is the cleaned one");
+    assert.deepEqual(
+      saved.games[0].strategy,
+      { round1: { baseline: "camp left", history: ["wave 1 died"] } },
+      "the round's strategy must be archived with its record",
+    );
+    assert.equal(saved.games[0].summary, "died wave 1, widen margins");
+
+    // round 2: payloads name the new round and the archive is sent separately
+    ctrl.beginGame(2);
+    ctrl.startEpoch(makeState({ wave: 2 }));
+    fake.lastPayload = "";
+    await ctrl.epochUpdate(makeState({ wave: 2 }));
+    assert.ok(fake.lastPayload.includes('"game":2'), "the new round must be named");
+    assert.ok(fake.lastPayload.includes('"round1"'), "the archived round-1 strategy rides along");
+    assert.ok(fake.lastPayload.includes('"epoch":1'), "the epoch counter restarts per round");
+    await rm(tmpFile, { force: true });
+  });
+
   it("dumps the raw response to diagnostic.txt when parsing fails", async () => {
     const dir = path.join(os.tmpdir(), `vv-diag-test-${process.pid}`);
     await rm(dir, { recursive: true, force: true });
@@ -507,6 +551,16 @@ describe("systemPrompt style directive", () => {
 });
 
 describe("EpochTracker", () => {
+  it("resets the epoch counter per game", () => {
+    const t = new EpochTracker();
+    t.reset(makeState(), Date.now()); // epoch 1
+    t.reset(makeState(), Date.now()); // epoch 2
+    t.beginGame(); // new game
+    t.reset(makeState(), Date.now()); // epoch 1 of the new game
+    const report = t.report(makeState(), Date.now());
+    assert.equal(report.epoch, 1, "a new game's first epoch must report as epoch 1");
+  });
+
   it("reports epoch deltas and events", () => {
     const t = new EpochTracker();
     const s0 = makeState();

@@ -24,9 +24,14 @@ export class EpochTracker {
   private lastDir = 0;
   private decisionReasons: Record<string, number> = {};
 
+  // New game: the epoch counter is per-game — the first epoch of every
+  // game reports as epoch 1 (the system prompt promises exactly that).
+  beginGame(): void {
+    this.epoch = 0;
+  }
+
   reset(s: GameState, now: number): void {
-    this.epoch++;
-    this.startedAt = now;
+    this.epoch++;    this.startedAt = now;
     this.scoreStart = s.score;
     this.livesStart = s.lives;
     this.shots = 0;

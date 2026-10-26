@@ -43,6 +43,9 @@ export interface GameRecord {
   outcome: string;
   summary?: string;
   finalParams?: ExecutorParams;
+  /** the strategy context (free-form memory) the model played this round with,
+   *  archived at the post-mortem — rounds are kept separate */
+  strategy?: unknown;
 }
 
 export interface MemoryFile {

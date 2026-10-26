@@ -120,9 +120,19 @@ Key details:
   `VERMINVADERS_CONTEXT_GAMES` game records (`previousGames`). The model
   maintains the memory itself — each post-mortem instructs it to
   consolidate (merge duplicate lessons, drop contradicted or outdated
-  observations) and keep the result under 300 words. The newest record's
-  `finalParams` also warm-starts the executor at the next session's
-  opening (`lastKnownParams()`).
+  observations) and keep the result under 300 words.
+- **Per-round separation**: rounds never bleed into each other. Each
+  finished round's record carries its own archived `strategy` — the
+  memory the model played that round with, snapshotted at the
+  post-mortem before the cleaned memory replaces the live one. Every
+  payload names the current `game` (`beginGame` is called at each
+  game start), and the epoch counter resets per game, so the round's
+  first epoch reports as epoch 1. The prompts enforce the split: the
+  live `memory` must hold only durable cross-round lessons, never
+  round-specific working state; each round's strategy rides along
+  separately in `previousGames`. The newest record's `finalParams`
+  also warm-starts the executor at the next session's opening
+  (`lastKnownParams()`).
 - **Safety**: in paused mode every LLM call site is wrapped in
   `pause → try → finally resume`, so a crash mid-call can never leave the
   game frozen. In async mode nothing is ever paused; consultations are

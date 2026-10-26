@@ -290,6 +290,9 @@ export class Harness {
       this.stop();
       return;
     }
+    // a new round begins: every payload now names this game, and the
+    // per-game epoch counter restarts at 1
+    this.strategy?.beginGame(this.gamesStarted + 1);
     // opening consultation: async mode starts game 1 immediately and the
     // model's opening plan applies a few seconds into the first wave;
     // paused mode waits for it so the game opens on tuned params.

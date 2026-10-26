@@ -31,6 +31,8 @@ export class StrategyController {
   private memoryPath: string;
   private memory: MemoryFile = { memory: null, notes: "", games: [] };
   private epochTracker = new EpochTracker();
+  /** the round (game) currently being played — every payload names it */
+  private game = 0;
   private cb: StrategyEvents;
   private notes = "";
   private lastParams: ExecutorParams | null = null;
@@ -101,13 +103,23 @@ export class StrategyController {
     this.epochTracker.reset(s, Date.now());
   }
 
+  // A new round begins: record which game is being played (every prompt
+  // carries it, so the model always knows which round it is reasoning
+  // about) and reset the per-game epoch counter to 0 — the round's first
+  // epoch then reports as epoch 1.
+  beginGame(game: number): void {
+    this.game = game;
+    this.epochTracker.beginGame();
+  }
+
   // Opening consultation (once per session, before the first game): the model
   // picks its starting params from persisted memory and past games, instead
   // of the executor opening on factory defaults.
   async openingStrategy(s: GameState): Promise<ExecutorParams | null> {
     return this.askModel(
-      "A new session is starting. Set your opening strategy.",
+      `A new session is starting. Set your opening strategy.`,
       {
+        game: this.game,
         state: compactState(s),
         memory: this.memory.memory,
         previousGames: this.recentGames(),
@@ -127,6 +139,7 @@ export class StrategyController {
     return this.askModel(
       `Epoch ${report.epoch} finished. Adjust your strategy.${urgency ? " " + urgency : ""}`,
       {
+        game: this.game,
         epochReport: report,
         state: compactState(s),
         memory: this.memory.memory,
@@ -144,6 +157,7 @@ export class StrategyController {
     return this.askModel(
       `Wave ${s.wave} cleared. Retune your strategy for the next wave.${urgency ? " " + urgency : ""}`,
       {
+        game: this.game,
         state: compactState(s),
         memory: this.memory.memory,
         previousGames: this.recentGames(),
@@ -153,8 +167,11 @@ export class StrategyController {
 
   // Post-mortem after a game ends: the model writes a per-game strategy
   // summary, tunes for the next game, and cleans up its own memory
-  // (deduplication, redundancy removal). Returns the tuned params so the
-  // driver can apply them — including the next game's vermin seed.
+  // (deduplication, redundancy removal). The finished round's strategy
+  // context is ARCHIVED with its record — the next round's reasoning works
+  // from the cleaned cross-round lessons, not from the old round's working
+  // state. Returns the tuned params so the driver can apply them —
+  // including the next game's vermin seed.
   async postMortem(s: GameState, gameNumber: number): Promise<ExecutorParams | null> {
     const outcome =
       s.lives <= 0 ? "ran out of lives" : "a rodent reached the lasagna line";
@@ -165,15 +182,24 @@ export class StrategyController {
       lives: s.lives,
       outcome,
     };
+    // archive the round's strategy with the round: the memory the model
+    // played this round with, snapshotted before its cleaned successor
+    // replaces the live memory — rounds stay separate
+    if (this.memory.memory !== null && this.memory.memory !== undefined) {
+      record.strategy = this.memory.memory;
+    }
     this.memory.games.push(record);
     const resp = await this.askModelRaw(
       `Game ${gameNumber} is over (${outcome}). ` +
         "Write gameSummary: one concise strategy summary of this game (under 80 words) — " +
         "what worked, what failed, and the single most important change for the next game. " +
         "Then adjust your params and memory accordingly. " +
-        "MEMORY CLEANUP: consolidate the memory you return — merge duplicated lessons, " +
-        "combine near-identical strategies (e.g. repeated parameterHistory entries), remove " +
-        "redundant, outdated or contradicted observations, and drop anything no longer useful. " +
+        "This round's strategy is archived with the game record, and each finished round's " +
+        "archived strategy arrives separately in previousGames — keep rounds separate. " +
+        "MEMORY CLEANUP: return in memory ONLY the durable cross-round lessons — merge " +
+        "duplicated lessons, remove redundant, outdated or contradicted observations, and " +
+        "drop anything no longer useful. Never carry round-specific working state (round " +
+        "counters, per-round history arrays, 'current baseline' snapshots) forward. " +
         "The cleaned memory must stay under 300 words.",
       {
         gameResult: record,

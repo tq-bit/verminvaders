@@ -149,6 +149,7 @@ describe("Harness wave planning", () => {
     const conn = fakeConn();
     const strategy = {
       tracker: { observe: () => {}, noteShot: () => {} },
+      beginGame: () => {},
       postMortem: async () => ({ ...DEFAULT_EXECUTOR_PARAMS, verminSeed: 777 }),
       openingStrategy: async () => null,
     };
@@ -336,6 +337,7 @@ describe("Harness async strategy mode", () => {
     let started = false;
     const strategy = {
       tracker: { observe: () => {}, noteShot: () => {} },
+      beginGame: () => {},
       postMortem: async () => {
         await gate.promise;
         return { ...DEFAULT_EXECUTOR_PARAMS, verminSeed: 777 };
@@ -383,6 +385,7 @@ describe("Harness async strategy mode", () => {
     let openingCalls = 0;
     const strategy = {
       tracker: { observe: () => {}, noteShot: () => {} },
+      beginGame: () => {},
       lastKnownParams: () => null,
       openingStrategy: async () => {
         openingCalls++;
@@ -420,9 +423,11 @@ describe("Harness async strategy mode", () => {
     assert.deepEqual(conn.verminSeeds, [31337], "opening params apply mid-play when they land");
   });
 
-  it("opens game 1 on the params the model last played with", async () => {    const conn = fakeConn();
+  it("opens game 1 on the params the model last played with", async () => {
+    const conn = fakeConn();
     const strategy = {
       tracker: { observe: () => {}, noteShot: () => {} },
+      beginGame: () => {},
       lastKnownParams: () => ({ ...DEFAULT_EXECUTOR_PARAMS, verminSeed: 2024 }),
       openingStrategy: async () => null,
     };
@@ -448,6 +453,7 @@ describe("Harness async strategy mode", () => {
     let started = false;
     const strategy = {
       tracker: { observe: () => {}, noteShot: () => {} },
+      beginGame: () => {},
       postMortem: async () => ({ ...DEFAULT_EXECUTOR_PARAMS, verminSeed: 777 }),
       openingStrategy: async () => null,
     };
@@ -533,6 +539,7 @@ describe("Harness intermission hold", () => {
     const conn = fakeConn();
     const strategy = {
       tracker: { observe: () => {}, noteShot: () => {} },
+      beginGame: () => {},
       postMortem: async () => null,
       openingStrategy: async () => null,
     };
@@ -549,5 +556,34 @@ describe("Harness intermission hold", () => {
     const t0 = Date.now();
     await h.handleRestart(makeState({ phase: "gameover" }));
     assert.ok(Date.now() - t0 >= 50, "the game-over screen must linger for the configured time");
+  });
+});
+
+describe("Harness per-round strategy separation", () => {
+  it("tells the strategist which round is starting and resets its epoch counter", async () => {
+    const conn = fakeConn();
+    const games: number[] = [];
+    const strategy = {
+      tracker: { observe: () => {}, noteShot: () => {} },
+      beginGame: (n: number) => {
+        games.push(n);
+      },
+      lastKnownParams: () => null,
+      postMortem: async () => null,
+      openingStrategy: async () => null,
+    };
+    const harness = new Harness(
+      conn as never,
+      new HeuristicPolicy(),
+      { event: () => {} } as never,
+      opts({ strategyMode: "async", maxGames: 5, intermissionMs: 0 }),
+      {},
+      strategy as never,
+    );
+    const h = harness as unknown as { handleRestart(s: unknown): Promise<void> };
+    await h.handleRestart(makeState({ phase: "title" })); // game 1
+    await h.handleRestart(makeState({ phase: "gameover" })); // game 2
+    await h.handleRestart(makeState({ phase: "gameover" })); // game 3
+    assert.deepEqual(games, [1, 2, 3], "each round must be announced with its number");
   });
 });
