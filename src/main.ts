@@ -126,8 +126,8 @@ async function main(): Promise<void> {
     let reasoningBuf = "";
     let reasoningFlushAt = 0;
     const limits = {
-      contextGames: intEnv("VERMINVADERS_CONTEXT_GAMES", 5),
-      maxMemoryGames: intEnv("VERMINVADERS_MEMORY_MAX_GAMES", 10),
+      contextGames: intEnv("VERMINVADERS_CONTEXT_GAMES", 10),
+      maxMemoryGames: intEnv("VERMINVADERS_MEMORY_MAX_GAMES", 20),
     };
     strategy = new StrategyController(
       client,

@@ -44,7 +44,7 @@ export function parseArgs(argv: string[]): Args {
     .option("--headed", "show the browser window")
     .option("--mode <mode>", "realtime or considered", "realtime")
     .option("--poll <ms>", "executor tick interval in ms", Number, 80)
-    .option("--games <n>", "games per session", Number, 3)
+    .option("--games <n>", "games per session", Number, 5)
     .option("--persona <path>", "custom fat-cat lines file")
     .option("--game <path>", "path to the game page")
     .option("--log-level <level>", "silent | normal | verbose", "normal")

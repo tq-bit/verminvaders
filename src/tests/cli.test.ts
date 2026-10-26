@@ -9,7 +9,7 @@ describe("parseArgs (commander)", () => {
     assert.equal(a.headed, false);
     assert.equal(a.mode, "realtime");
     assert.equal(a.pollMs, 80);
-    assert.equal(a.maxGames, 3);
+    assert.equal(a.maxGames, 5);
     assert.equal(a.logLevel, "normal");
     assert.equal(a.model, "mistral-large-4");
     assert.equal(a.epochMs, undefined, "no --epoch-ms: per-wave strategy");

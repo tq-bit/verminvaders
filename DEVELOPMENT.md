@@ -112,6 +112,13 @@ Key details:
 - **Memory** persists across sessions in `memory/mistral-strategy.json`:
   the model's free-form lessons plus per-game records (score, outcome,
   summary, final params), trimmed to `VERMINVADERS_MEMORY_MAX_GAMES`.
+  Every consultation receives both: the `memory` object and the last
+  `VERMINVADERS_CONTEXT_GAMES` game records (`previousGames`). The model
+  maintains the memory itself — each post-mortem instructs it to
+  consolidate (merge duplicate lessons, drop contradicted or outdated
+  observations) and keep the result under 300 words. The newest record's
+  `finalParams` also warm-starts the executor at the next session's
+  opening (`lastKnownParams()`).
 - **Safety**: in paused mode every LLM call site is wrapped in
   `pause → try → finally resume`, so a crash mid-call can never leave the
   game frozen. In async mode nothing is ever paused; consultations are

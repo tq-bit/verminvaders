@@ -77,7 +77,7 @@ Two optional environment-variables tune how much history the model works with:
 From `src/`:
 
 ```bash
-node main.ts                # 3 games, mistral-large-4, 10 s epochs, headless
+node main.ts                # 5 games, mistral-large-4, 10 s epochs, headless
 node main.ts --headed       # watch it play in a Chromium window
 ```
 
@@ -95,7 +95,7 @@ You can tweak how the AI plays the game. `--headed` allows you to watch the mode
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--headed` | headless | Open a visible Chromium window and watch the game. |
-| `--games <n>` | `3` | Auto-restart up to n games per session. |
+| `--games <n>` | `5` | Auto-restart up to n games per session. |
 | `--model <name>` | `mistral-large-4` | Which Mistral model is the strategic brain. |
 | `--epoch-ms <n>` | (none) | Strategy epoch length: the model is consulted mid-play every n ms. Omit it for per-wave strategy — no mid-wave stops, the model retunes once per cleared wave (plus opening/post-mortem). |
 | `--strategy-mode async\|paused` | `async` | `async` (default): the game keeps playing while Mistral strategizes in the background; new params apply the moment the model returns. `paused`: the classic fair-play catnap — the game freezes around every consultation. |
@@ -120,7 +120,7 @@ node main.ts --epoch-ms 5000
 node main.ts --epoch-ms 5000 --strategy-mode paused
 
 # three games, survival first
-node main.ts --games 3 --style "careful: survival over score, wide margins"
+node main.ts --games 5 --style "careful: survival over score, wide margins"
 
 # let it learn across sessions, then reset the brain
 node main.ts

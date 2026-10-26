@@ -46,7 +46,7 @@ describe("promptConfig", () => {
   it("keeps all defaults on empty answers", async () => {
     const rl = scripted(["", "", "", "", ""]);
     const a = await promptConfig(base(), rl);
-    assert.equal(a.maxGames, 3);
+    assert.equal(a.maxGames, 5);
     assert.equal(a.epochMs, undefined, "empty answer keeps the per-wave default");
     assert.equal(a.strategyMode, "async", "empty answer keeps the async default");
     assert.equal(a.style, "");
@@ -98,7 +98,7 @@ describe("promptConfig", () => {
   it("falls back to the default on garbage input", async () => {
     const rl = scripted(["banana", "later", "sometimes", "", ""]);
     const a = await promptConfig(base(), rl);
-    assert.equal(a.maxGames, 3);
+    assert.equal(a.maxGames, 5);
     assert.equal(a.epochMs, undefined, "invalid epoch keeps the per-wave default");
     assert.equal(a.strategyMode, "async", "invalid mode keeps the async default");
     assert.equal(a.style, "");
