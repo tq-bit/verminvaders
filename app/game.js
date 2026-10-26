@@ -118,6 +118,8 @@
   // ---------- flow ----------
   function startGame() {
     score = 0; wave = 1; lives = 3; state = "playing";
+    // the strategy panel stays up: the last plan remains visible until the
+    // next consultation overwrites it
     newWave();
   }
 
@@ -749,6 +751,94 @@
   // pause()/resume() are optional: freeze the simulation while thinking,
   // the cat holds its position and inputs apply on resume.
   function rodPoints(r) { return r.rat ? 30 : (r.row === 2 ? 20 : 10); }
+
+  // ---------- strategy feed panel (right of the canvas) ----------
+  // The harness streams the strategist's reasoning into this DOM panel
+  // while the game is paused for a consultation; live=1 shows the pulsing
+  // status and the blinking cursor, live=0 settles the text. The status
+  // line rotates through the cat's stream of consciousness while it thinks.
+  const stratPanel = document.getElementById("strategy-panel");
+  const stratBody = document.getElementById("strategy-body");
+  const stratStatusText = stratPanel ? stratPanel.querySelector(".strategy__status-text") : null;
+  let stratLiveTimer = 0;
+  let stratThoughtTimer = 0;
+  const STRAT_THOUGHTS = [
+    "Thinking about tuna",
+    "Playing with yarn",
+    "Spitting out furballs",
+    "Chasing the red dot",
+    "Napping on the keyboard",
+    "Judging the rodents",
+    "Kneading the lasagna",
+    "Begging for snacks",
+    "Plotting world domination",
+    "Sharpening the claws",
+  ];
+
+  function nextThought() {
+    if (!stratStatusText) return;
+    stratStatusText.textContent = STRAT_THOUGHTS[Math.floor(Math.random() * STRAT_THOUGHTS.length)];
+  }
+
+  function settleStrategyStatus() {
+    clearInterval(stratThoughtTimer);
+    stratThoughtTimer = 0;
+  }
+
+  function setStrategy(text, live) {
+    if (!stratPanel || !stratBody) return false;
+    stratBody.textContent = String(text == null ? "" : text);
+    stratPanel.hidden = false;
+    if (live) {
+      clearTimeout(stratLiveTimer);
+      if (stratPanel.dataset.live !== "1") {
+        nextThought(); // fresh consultation, fresh thought
+        stratThoughtTimer = setInterval(nextThought, 2500);
+      }
+      stratPanel.dataset.live = "1";
+    } else {
+      settleStrategyStatus();
+      stratPanel.dataset.live = "0";
+    }
+    stratBody.scrollTop = stratBody.scrollHeight;
+    return true;
+  }
+
+  function clearStrategy() {
+    if (!stratPanel) return false;
+    clearTimeout(stratLiveTimer);
+    settleStrategyStatus();
+    stratPanel.hidden = true;
+    stratPanel.dataset.live = "0";
+    if (stratBody) stratBody.textContent = "";
+    return true;
+  }
+
+  // ---------- reasoning feed panel (right of the strategy panel) ----------
+  // The model's raw thinking chain streams here while it reasons; it stays
+  // until the next consultation replaces it. Only the tail is kept.
+  const thinkPanel = document.getElementById("thinking-panel");
+  const thinkBody = document.getElementById("thinking-body");
+
+  function setThinking(text, live) {
+    if (!thinkPanel || !thinkBody) return false;
+    var t = String(text == null ? "" : text);
+    if (!t) return clearThinking();
+    thinkBody.textContent = t.slice(-8000);
+    thinkPanel.hidden = false;
+    thinkPanel.dataset.live = live ? "1" : "0";
+    thinkBody.scrollTop = thinkBody.scrollHeight;
+    return true;
+  }
+
+  function clearThinking() {
+    if (!thinkPanel) return false;
+    thinkPanel.hidden = true;
+    thinkPanel.dataset.live = "0";
+    if (thinkBody) thinkBody.textContent = "";
+    return true;
+  }
+
   window.verminvaders = {
     version: 1,
     canvas: { w: W, h: H, catY: CAT_Y },
@@ -798,9 +888,34 @@
       return true;
     },
     stop: function () { keys.left = false; keys.right = false; pointerDown = false; catTarget = null; return true; },
+    // --- strategy feed (the model's own words, streamed live) ---
+    showStrategy: function (text, live) {
+      return setStrategy(text, !!live);
+    },
+    clearStrategy: function () {
+      return clearStrategy();
+    },
+    // --- reasoning feed (the model's raw thinking chain, streamed live) ---
+    showThinking: function (text, live) {
+      return setThinking(text, !!live);
+    },
+    clearThinking: function () {
+      return clearThinking();
+    },
     // --- optional thinking pause ---
     pause: function () { paused = true; return true; },
-    resume: function () { paused = false; return true; },
+    resume: function () {
+      paused = false;
+      // the streamed strategy stays live for a short moment once play continues
+      if (stratPanel && stratPanel.dataset.live === "1") {
+        clearTimeout(stratLiveTimer);
+        stratLiveTimer = setTimeout(function () {
+          settleStrategyStatus();
+          stratPanel.dataset.live = "0";
+        }, 6000);
+      }
+      return true;
+    },
     togglePause: function () { paused = !paused; return true; }
   };
 

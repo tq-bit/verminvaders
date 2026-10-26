@@ -53,7 +53,11 @@ export interface MemoryFile {
 
 export interface StrategyEvents {
   onStrategyStart?: () => void;
-  onStrategy?: (notes: string, params: ExecutorParams) => void;
+  /** live notes-so-far while the model streams its JSON answer */
+  onAnswerDelta?: (notesSoFar: string) => void;
+  /** notes + params of the finished consultation; nextGame is the
+   * post-mortem's gameSummary — the plan for the next game, if any */
+  onStrategy?: (notes: string, params: ExecutorParams, nextGame?: string) => void;
   onThinkingDelta?: (delta: string) => void;
   onThinkingEnd?: () => void;
   onLlmError?: (message: string) => void;

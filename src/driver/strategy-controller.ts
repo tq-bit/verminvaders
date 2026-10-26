@@ -20,7 +20,7 @@ import type { MistralClient } from "../llm/mistral-client.ts";
 import { DEFAULT_STRATEGY_LIMITS } from "../constants/index.ts";
 import { compactState } from "./strategy-prompt.ts";
 import { systemPrompt } from "../prompts/system-prompt.ts";
-import { normalizeParams, parseStrategyResponse } from "./strategy-params.ts";
+import { normalizeParams, extractNotesPrefix, parseStrategyResponse } from "./strategy-params.ts";
 import { intEnv } from "../ui/cli.ts";
 import { EpochTracker } from "./epoch-tracker.ts";
 
@@ -190,14 +190,31 @@ export class StrategyController {
     try {
       this.cb.onStrategyStart?.(); // spinner or reasoning stream begins
       const schema = this.loadSchema();
+      // live strategy feed: surface the notes-so-far from the streamed JSON
+      // answer, throttled — every delta would hammer the browser evaluate
+      let streamed = "";
+      let shown = "";
+      let lastFlush = 0;
+      const flushNotes = () => {
+        if (Date.now() - lastFlush < 250) return;
+        const notes = extractNotesPrefix(streamed);
+        if (!notes || notes === shown) return;
+        shown = notes;
+        lastFlush = Date.now();
+        this.cb.onAnswerDelta?.(notes);
+      };
       const text = await this.client.chat(
         messages,
         {
           ...(schema ? { responseSchema: schema } : { json: true }),
-          maxTokens: intEnv("VERMINVADERS_MAX_TOKENS", 12000),
+          maxTokens: intEnv("VERMINVADERS_MAX_TOKENS", 15000),
         },
         (kind, delta) => {
           if (kind === "thinking") this.cb.onThinkingDelta?.(delta);
+          else {
+            streamed += delta;
+            flushNotes();
+          }
         },
       );
       const resp = parseStrategyResponse(text);
@@ -212,7 +229,7 @@ export class StrategyController {
       this.lastParams = params;
       this.memory.memory = resp.memory ?? this.memory.memory;
       this.notes = resp.notes;
-      this.cb.onStrategy?.(resp.notes, params);
+      this.cb.onStrategy?.(resp.notes, params, resp.gameSummary || undefined);
       await this.save();
       return resp;
     } catch (e) {

@@ -18,6 +18,8 @@ The harness uses Playwright on a Chromium Server. It talks to the game's Harness
 
 The harness has a simple memory function built-in to strategize and learn from previous mistakes. Turns out it is able to play the game much better than I used to be.
 
+The model's own words also appear in the game page, in two glass panels right of the canvas: "Le Chonk's thoughts" streams its raw reasoning chain live while it strategizes, and "Current Strategy" settles to its plan for the next epoch or game plus the executor levers it will play with. The `--headed` window (and every recording) is sized to fit both.
+
 ### How a session flows
 
 ```
@@ -27,8 +29,8 @@ serve game -> launch Chromium -> connect to window.verminvaders (10 s timeout)
   -> every epoch: pause -> stream state + report + memory to Mistral
        (report includes crumb firing statistics: crumbs fired,
         per-column spawn histogram, near misses)
-       -> model reasons (streamed live) -> returns params + memory
-       -> apply params, persist memory, resume
+       -> model reasons (streamed live into the game's strategy panel)
+       -> returns params + memory -> apply params, persist memory, resume
   -> game over: post-mortem into memory -> next game (up to --games)
   -> session summary (games, best score, shots, hits, duration)
 ```

@@ -66,17 +66,21 @@ async function main(): Promise<void> {
 
   try {
     browser = await chromium.launch({ headless: !args.headed });
+    // the window fits the canvas (480x600 + 2px css border per side) and,
+    // with the LLM on, both feed panels to its right (300 + 460 + gaps):
+    // a 1288x604 viewport in --headed mode and in every recording
+    const vp = { width: args.noLlm ? 484 : 1288, height: 604 };
     if (args.videoDir) {
-      // record the canvas area: 480x600 plus the 2px css border on each side
       const context = await browser.newContext({
-        viewport: { width: 484, height: 604 },
-        recordVideo: { dir: args.videoDir, size: { width: 484, height: 604 } },
+        viewport: vp,
+        recordVideo: { dir: args.videoDir, size: vp },
       });
       page = await context.newPage();
       // the click hint is for humans at a keyboard, not for a recording
       await page.addStyleTag({ content: ".hint { display: none }" });
     } else {
-      page = await browser.newPage();
+      const context = await browser.newContext({ viewport: vp });
+      page = await context.newPage();
     }
     await page.goto(url);
   } catch (e) {
@@ -114,6 +118,9 @@ async function main(): Promise<void> {
       args.model,
       args.thinking && args.logLevel !== "silent",
     );
+    // the model's reasoning chain, streamed into the thoughts panel
+    let reasoningBuf = "";
+    let reasoningFlushAt = 0;
     const limits = {
       contextGames: intEnv("VERMINVADERS_CONTEXT_GAMES", 5),
       maxMemoryGames: intEnv("VERMINVADERS_MEMORY_MAX_GAMES", 10),
@@ -122,10 +129,33 @@ async function main(): Promise<void> {
       client,
       args.memoryPath,
       {
-        onStrategyStart: () => thinking.begin(),
-        onThinkingDelta: (delta) => thinking.push("thinking", delta),
-        onThinkingEnd: () => thinking.finish(),
-        onStrategy: (notes, params) => {
+        onStrategyStart: () => {
+          thinking.begin();
+          // fresh consultation: the reasoning chain restarts from scratch
+          reasoningBuf = "";
+          conn.clearThinking().catch(() => {});
+        },
+        // live feed: notes-so-far stream into the game's strategy panel
+        onAnswerDelta: (text) => {
+          conn.showStrategy(text, true).catch(() => {});
+        },
+        onThinkingDelta: (delta) => {
+          thinking.push("thinking", delta);
+          // reasoning chain into the thoughts panel, throttled — the raw
+          // stream fires far more often than the eye can read
+          reasoningBuf += delta;
+          const now = Date.now();
+          if (now - reasoningFlushAt >= 150) {
+            reasoningFlushAt = now;
+            conn.showThinking(reasoningBuf.slice(-8000), true).catch(() => {});
+          }
+        },
+        onThinkingEnd: () => {
+          thinking.finish();
+          // always settle the chain, even when parsing later fails
+          if (reasoningBuf) conn.showThinking(reasoningBuf.slice(-8000), false).catch(() => {});
+        },
+        onStrategy: (notes, params, nextGame) => {
           console.log(c.cyan(`[${args.model}] ${notes}`));
           console.log(
             c.green(
@@ -137,6 +167,16 @@ async function main(): Promise<void> {
               `[${args.model}] levers: rowWeights=${params.rowWeights.join("/")} colAvoid=${params.colAvoid.join("/")} livesRisk=${params.livesRisk.join("/")} exploration=${params.exploration} aimJitter=${params.aimJitterPx}px travelCost=${params.travelCost} seed=${params.rngSeed}`,
             ),
           );
+          // settle the panel: final notes, the next-game plan (post-mortem)
+          // and the levers the executor will now play with
+          const display = [
+            notes,
+            nextGame ? `NEXT GAME: ${nextGame}` : "",
+            `PLAY: rowW=${params.lowestRowWeight} ptsW=${params.pointsWeight} shieldPen=${params.shieldPenalty} chew=${params.chewShields} roombaFirst=${params.roombaFirst} dodgeH=${params.dodgeHorizonS}s accept=${params.acceptHitBelowS}s margin=${params.corridorMarginPx}px colSpreadW=${params.columnSpreadWeight}`,
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+          conn.showStrategy(display).catch(() => {});
         },
         onLlmError: (msg) => console.error(c.red(`[${args.model}] ${msg}`)),
       },

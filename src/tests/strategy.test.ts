@@ -9,6 +9,7 @@ import {
   EpochTracker,
 } from "../driver/epoch-tracker.ts";
 import {
+  extractNotesPrefix,
   normalizeParams,
   parseStrategyResponse,
 } from "../driver/strategy-params.ts";
@@ -54,6 +55,24 @@ class FakeClient {
     this.lastPayload = messages[1].content;
     this.lastOpts = opts;
     return this.answer;
+  }
+}
+
+// Streams the canned answer in text chunks, like the real SSE client.
+class StreamingFakeClient extends FakeClient {
+  async chat(
+    messages: Array<{ role: string; content: string }>,
+    opts: Record<string, unknown> = {},
+    onDelta?: (kind: "thinking" | "text", text: string) => void,
+  ): Promise<string> {
+    const answer = await super.chat(messages, opts);
+    if (typeof onDelta === "function") {
+      const answer2 = answer as string;
+      for (const chunk of [answer2.slice(0, 40), answer2.slice(40, 80), answer2.slice(80)]) {
+        if (chunk) onDelta("text", chunk);
+      }
+    }
+    return answer;
   }
 }
 
@@ -122,8 +141,7 @@ describe("parseStrategyResponse", () => {
     assert.equal(parseStrategyResponse("I refuse to answer."), null);
   });
 
-  it("fills and clamps the structured lever arrays", () => {
-    const p = normalizeParams({
+  it("fills and clamps the structured lever arrays", () => {    const p = normalizeParams({
       rowWeights: [3, 99, -4], // padded, clamped to 0..10
       colAvoid: "not an array", // falls back to all zeros
       livesRisk: [10], // padded with the neutral default
@@ -139,6 +157,33 @@ describe("parseStrategyResponse", () => {
     assert.equal(p.aimJitterPx, 0);
     assert.equal(p.travelCost, 10);
     assert.equal(p.rngSeed, 0);
+  });
+});
+
+describe("extractNotesPrefix", () => {
+  it("returns nothing until the notes value has started streaming", () => {
+    assert.equal(extractNotesPrefix('{"params":{"pointsWeight":4'), "");
+    assert.equal(extractNotesPrefix('{"params":{},"notes":'), "");
+    assert.equal(extractNotesPrefix('{"params":{},"notes":"'), "");
+  });
+
+  it("returns the notes-so-far from a partially streamed value", () => {
+    assert.equal(
+      extractNotesPrefix('{"params":{},"notes":"camp the left wall, che'),
+      "camp the left wall, che",
+    );
+  });
+
+  it("decodes escapes and stops at the closing quote", () => {
+    assert.equal(
+      extractNotesPrefix('{"params":{},"notes":"row one\\nrow two \\"quoted\\" done","memory":{}}'),
+      'row one\nrow two "quoted" done',
+    );
+  });
+
+  it("decodes unicode escapes and keeps a cut-off escape for later", () => {
+    assert.equal(extractNotesPrefix('{"notes":"caf\\u00e9"}'), "café");
+    assert.equal(extractNotesPrefix('{"notes":"cut \\'), "cut ");
   });
 });
 
@@ -217,11 +262,42 @@ describe("StrategyController per-game summaries and limits", () => {
       assert.equal(fake.lastOpts?.maxTokens, 999);
       process.env.VERMINVADERS_MAX_TOKENS = "";
       await ctrl.openingStrategy(makeState());
-      assert.equal(fake.lastOpts?.maxTokens, 12000, "empty value must fall back to the default");
+      assert.equal(fake.lastOpts?.maxTokens, 15000, "empty value must fall back to the default");
     } finally {
       if (prev === undefined) delete process.env.VERMINVADERS_MAX_TOKENS;
       else process.env.VERMINVADERS_MAX_TOKENS = prev;
     }
+    await rm(tmpFile, { force: true });
+  });
+
+  it("streams notes-so-far to onAnswerDelta and passes the post-mortem plan to onStrategy", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new StreamingFakeClient();
+    fake.answer = JSON.stringify({
+      params: {},
+      notes: "camp the left wall, chew nothing",
+      gameSummary: "keep wide margins",
+      memory: {},
+    });
+    const deltas: string[] = [];
+    const plans: Array<{ notes: string; nextGame?: string }> = [];
+    const ctrl = new StrategyController(
+      fake as unknown as MistralClient,
+      tmpFile,
+      {
+        onAnswerDelta: (text) => deltas.push(text),
+        onStrategy: (notes, _params, nextGame) => plans.push({ notes, nextGame }),
+      },
+      "",
+      { contextGames: 1, maxMemoryGames: 2 },
+    );
+    await ctrl.load();
+    await ctrl.epochUpdate(makeState());
+    assert.ok(deltas.length >= 1, "notes-so-far must reach onAnswerDelta");
+    assert.ok(deltas[deltas.length - 1].startsWith("camp the left wall"));
+    assert.equal(plans.length, 1);
+    assert.equal(plans[0].notes, "camp the left wall, chew nothing");
+    assert.equal(plans[0].nextGame, "keep wide margins");
     await rm(tmpFile, { force: true });
   });
 

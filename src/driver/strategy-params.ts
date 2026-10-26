@@ -62,3 +62,38 @@ export function parseStrategyResponse(text: string): StrategyResponse | null {
     gameSummary: typeof obj.gameSummary === "string" ? obj.gameSummary : "",
   };
 }
+
+// Notes-so-far from a partially streamed JSON answer. The strict response
+// schema emits `params` before `notes`, so the first `"notes": "` match is
+// the top-level field; from its opening quote the decoded content is
+// returned up to whatever has streamed so far ("" before it starts). This
+// is a best-effort live display — the authoritative notes come from the
+// full JSON.parse in parseStrategyResponse.
+export function extractNotesPrefix(raw: string): string {
+  const m = raw.match(/"notes"\s*:\s*"/);
+  if (!m || m.index === undefined) return "";
+  let out = "";
+  let i = m.index + m[0].length;
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch === "\\") {
+      const next = raw[i + 1];
+      if (next === undefined) break; // escape cut off mid-stream
+      if (next === "n") out += "\n";
+      else if (next === "t") out += "\t";
+      else if (next === "r") out += "";
+      else if (next === "u" && /^[0-9a-fA-F]{4}$/.test(raw.slice(i + 2, i + 6))) {
+        out += String.fromCharCode(parseInt(raw.slice(i + 2, i + 6), 16));
+        i += 6;
+        continue;
+      } else out += next; // ", \\, / and anything else: keep as-is
+      i += 2;
+      continue;
+    }
+    if (ch === '"') break; // notes value complete
+    out += ch;
+    i++;
+  }
+  return out;
+}
+

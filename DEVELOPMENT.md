@@ -449,8 +449,67 @@ to "will it use it?" — run the three arms above to find out.
 | Area | Files |
 |---|---|
 | Executor | `src/policy/heuristic.ts` (pipeline), `aim.ts`, `dodge.ts`, `hot-corridors.ts`, `rng.ts` |
-| Strategy integration | `src/driver/strategy-controller.ts`, `src/prompts/system-prompt.ts` (the model-facing system prompt), `strategy-prompt.ts` (state compaction), `strategy-params.ts`, `strategy-response.schema.json` (strict API contract), `epoch-tracker.ts` |
+| Strategy integration | `src/driver/strategy-controller.ts`, `src/prompts/system-prompt.ts` (the model-facing system prompt), `strategy-prompt.ts` (state compaction), `strategy-params.ts` (param clamping, live notes extraction), `strategy-response.schema.json` (strict API contract), `epoch-tracker.ts` |
 | Orchestration | `src/driver/driver.ts` (tick loop, phases, consultation moments), `connection.ts` (Playwright bridge), `stats.ts` |
 | Entry point | `src/main.ts` (wiring, env, callbacks) |
 | Config | `src/constants/policy.ts` (defaults), `src/.env` (API key, RNG seed, context/memory limits, max tokens), `src/ui/cli.ts` (flags) |
 | Tests | `src/tests/` — `npm test`, `npm run typecheck` |
+
+## How the model affects the policy (param flow)
+
+The model never plays a frame. Its only lever is a partial
+`ExecutorParams` object, handed back at each consultation point and
+plumbed into the executor between ticks. This is that path, zoomed in:
+
+```mermaid
+flowchart TB
+    subgraph consult ["Consultation (game paused: opening / waveclear / epoch)"]
+        M["Mistral model<br/>(--model, JSON mode)"]
+        M -->|"JSON: { params, notes, memory }"| PS["parseStrategyResponse<br/>(strategy-params.ts; prose-wrapped JSON fallback)"]
+        PS -->|"unparseable or LLM error"| KEEP["keep current params<br/>(finally watchdog resumes the game)"]
+        PS --> NP["normalizeParams:<br/>clamp every value to its legal range,<br/>pad/clamp rowWeights, colAvoid, livesRisk,<br/>invalid values fall back to DEFAULT_EXECUTOR_PARAMS"]
+        NP --> SP["policy.setParams merge:<br/>defaults, then previous, then new partial<br/>(untouched knobs persist across epochs)"]
+    end
+
+    subgraph knobs ["ExecutorParams knobs"]
+        SP --> T["targeting:<br/>lowestRowWeight, pointsWeight,<br/>rowWeights, colAvoid,<br/>travelCost, columnSpreadWeight"]
+        SP --> DG["dodging:<br/>dodgeHorizonS, acceptHitBelowS,<br/>corridorMarginPx, livesRisk"]
+        SP --> SH["shield risk:<br/>shieldPenalty scaled by livesRisk,<br/>chewShields"]
+        SP --> RN["stochasticity:<br/>exploration, aimJitterPx, rngSeed"]
+        SP --> RB["roombaFirst"]
+    end
+
+    subgraph exec ["Executor tick (every 80 ms: HeuristicPolicy.decide)"]
+        DG --> DOD["planDodgeCommitted:<br/>threat window + hysteresis<br/>(dodge outranks aiming)"]
+        RB --> PL["planShot: roomba intercept, else rodents"]
+        T --> SC["planRodent scoring:<br/>row urgency + points<br/>- colAvoid, travelCost,<br/>shieldPenalty, hot corridors,<br/>column spread"]
+        SH --> SC
+        RN --> SC
+        PL --> SC
+        DOD --> DEC["Decision: moveTo / shoot / hold"]
+        SC --> DEC
+    end
+
+    DEC -->|"window.verminvaders bridge"| GAME["game state"]
+    GAME -->|"readState + observeTransitions"| TK["EpochTracker:<br/>shots, hits, crumb histogram,<br/>movement telemetry, lastReason census"]
+    TK -->|"epoch report"| NEXT["next prompt payload"]
+    NEXT --> M
+    M -->|"memory update"| MEM[("memory/mistral-strategy.json")]
+    MEM -->|"lessons + game records"| M
+```
+
+Key property of the loop: the model's influence is *clamped twice* —
+`normalizeParams` bounds every value before it reaches the executor,
+and `setParams` merges it over the previous set, so a bad or partial
+answer degrades the policy's behavior rather than breaking it.
+
+The same stream also surfaces in the game page itself, in two glass
+panels right of the canvas. "Le Chonk's thoughts" streams the model's
+raw reasoning chain live (`onThinkingDelta`, throttled to ~7 Hz, tail
+kept); "Current Strategy" settles to the extracted `notes`
+(`extractNotesPrefix` in `strategy-params.ts`, ~4 Hz) plus the
+post-mortem's next-game plan and the levers the executor plays with.
+While the game is paused for a consultation both panels are marked
+live (pulsing status, blinking cursor). The harness window is sized
+to fit the whole stage: 1288x604.
+

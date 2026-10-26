@@ -69,4 +69,23 @@ export class Connection {
   async stopInputs(): Promise<void> {
     await this.page.evaluate(() => window.verminvaders?.stop());
   }
+
+  // Stream the strategist's words into the game page's strategy panel.
+  // live=true marks the model as mid-consultation (pulsing status, cursor).
+  async showStrategy(text: string, live = false): Promise<void> {
+    await this.page.evaluate(([t, l]) => window.verminvaders?.showStrategy?.(t, l), [text, live]);
+  }
+
+  async clearStrategy(): Promise<void> {
+    await this.page.evaluate(() => window.verminvaders?.clearStrategy?.());
+  }
+
+  // Stream the model's raw reasoning chain into the thinking panel.
+  async showThinking(text: string, live = false): Promise<void> {
+    await this.page.evaluate(([t, l]) => window.verminvaders?.showThinking?.(t, l), [text, live]);
+  }
+
+  async clearThinking(): Promise<void> {
+    await this.page.evaluate(() => window.verminvaders?.clearThinking?.());
+  }
 }

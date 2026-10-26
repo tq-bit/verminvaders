@@ -25,6 +25,13 @@ html, body {
   color: rgb(var(--color-text));
 }
 
+.stage {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 20px;
+}
+
 canvas {
   background: rgb(var(--color-bg)); /* matches the canvas fill: repainted every frame */
   border: 2px solid rgba(var(--color-primary), 0.16);
@@ -43,4 +50,135 @@ canvas {
 .hint {
   color: rgb(var(--color-text-muted));
   font-size: 12px; margin-top: 8px; text-align: center;
+}
+
+/* ---------- feed panels (qbit glass cards, right of the canvas) --------- */
+/* Le Chonk's thoughts (settled strategy) and reasoning (live chain).     */
+.strategy,
+.thinking {
+  border-radius: 1rem;
+  background: linear-gradient(180deg,
+    rgba(var(--color-primary), 0.04),
+    rgba(var(--color-surface), 0.6) 35%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(var(--color-primary), 0.16);
+  box-shadow: 0 10px 40px var(--color-shadow);
+  color: rgb(var(--color-text));
+  width: 300px;
+  max-height: 600px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* the reasoning chain is the bigger feed */
+.thinking {
+  width: 460px;
+}
+
+.strategy__header,
+.thinking__header {
+  flex: none;
+}
+
+.strategy__title,
+.thinking__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: linear-gradient(45deg,
+    rgb(var(--color-primary)) 0%,
+    rgb(var(--color-secondary)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+  animation: moveGradient 5s linear infinite;
+}
+
+.strategy__status,
+.thinking__status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: rgb(var(--color-text-muted));
+  display: flex; align-items: center; gap: 6px;
+}
+
+.strategy__dot,
+.thinking__dot {
+  width: 7px; height: 7px; border-radius: 9999px;
+  background: rgb(var(--color-secondary));
+  box-shadow: 0 0 8px rgba(var(--color-secondary), 0.8);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* not strategizing: hide the live status, stop the cursor */
+.strategy[data-live="0"] .strategy__status,
+.thinking[data-live="0"] .thinking__status { visibility: hidden; }
+
+.strategy__body,
+.thinking__body {
+  flex: 1;
+  margin: 12px 0 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--color-border-strong), 0.6) transparent;
+}
+
+.strategy__body::-webkit-scrollbar,
+.thinking__body::-webkit-scrollbar { width: 8px; }
+.strategy__body::-webkit-scrollbar-thumb,
+.thinking__body::-webkit-scrollbar-thumb {
+  background: rgba(var(--color-border-strong), 0.6);
+  border-radius: 9999px;
+}
+
+.strategy[data-live="1"] .strategy__body::after,
+.thinking[data-live="1"] .thinking__body::after {
+  content: "▮";
+  color: rgb(var(--color-primary));
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes moveGradient {
+  0% { background-position: 0% 50%; }
+  25% { background-position: 50% 100%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 0%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.75); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* narrow viewports: stack the panels under the canvas. The three-column
+   row needs 1288px (canvas 484 + strategy 302 + thoughts 462 + gaps 40) */
+@media (max-width: 1287px) {
+  .stage { flex-direction: column; align-items: center; }
+  .strategy { width: auto; max-width: 480px; max-height: 220px; }
+  .thinking { width: auto; max-width: 480px; max-height: 260px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strategy__title, .thinking__title, .strategy__dot, .thinking__dot,
+  .strategy[data-live="1"] .strategy__body::after,
+  .thinking[data-live="1"] .thinking__body::after {
+    animation: none;
+  }
 }
