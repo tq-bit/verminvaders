@@ -66,10 +66,12 @@ async function main(): Promise<void> {
 
   try {
     browser = await chromium.launch({ headless: !args.headed });
-    // the window fits the canvas (480x600 + 2px css border per side) and,
-    // with the LLM on, both feed panels to its right (300 + 460 + gaps):
-    // a 1288x604 viewport in --headed mode and in every recording
-    const vp = { width: args.noLlm ? 484 : 1288, height: 604 };
+    // the window fits the whole stage with breathing room (24px body
+    // padding, measured): the canvas column (strategy strip + canvas =
+    // 484x824) plus the 460px thoughts feed and the hint line
+    const vp = args.noLlm
+      ? { width: 532, height: 674 }
+      : { width: 1014, height: 900 };
     if (args.videoDir) {
       const context = await browser.newContext({
         viewport: vp,

@@ -15,8 +15,11 @@
   --color-glow-secondary: rgba(178, 122, 255, 0.05);
 }
 
-html, body {
-  margin: 0; padding: 0;
+html { margin: 0; }
+
+body {
+  margin: 0; padding: 24px;
+  box-sizing: border-box;
   background: rgb(var(--color-bg));
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
@@ -29,6 +32,13 @@ html, body {
   display: flex;
   align-items: stretch;
   justify-content: center;
+  gap: 20px;
+}
+
+/* left column: the settled strategy sits on top of the game */
+.stage__left {
+  display: flex;
+  flex-direction: column;
   gap: 20px;
 }
 
@@ -52,8 +62,9 @@ canvas {
   font-size: 12px; margin-top: 8px; text-align: center;
 }
 
-/* ---------- feed panels (qbit glass cards, right of the canvas) --------- */
-/* Le Chonk's thoughts (settled strategy) and reasoning (live chain).     */
+/* ---------- feed panels (qbit glass cards) -------------------------------- */
+/* Current Strategy: on top of the canvas (left column).                   */
+/* Le Chonk's thoughts: the reasoning chain, right of everything.          */
 .strategy,
 .thinking {
   border-radius: 1rem;
@@ -65,15 +76,25 @@ canvas {
   border: 1px solid rgba(var(--color-primary), 0.16);
   box-shadow: 0 10px 40px var(--color-shadow);
   color: rgb(var(--color-text));
-  width: 300px;
-  max-height: 600px;
   padding: 18px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
 
-/* the reasoning chain is the bigger feed */
+/* the author display:flex above would override the hidden attribute's
+   UA display:none — restate it or empty cards stay visible */
+.strategy[hidden],
+.thinking[hidden] { display: none; }
+
+/* strategy: canvas-wide strip above the game */
+.strategy {
+  width: 484px;
+  height: 200px;
+  flex: none;
+}
+
+/* the reasoning chain is the bigger feed, stretching beside the column */
 .thinking {
   width: 460px;
 }
@@ -167,12 +188,12 @@ canvas {
   50% { opacity: 0; }
 }
 
-/* narrow viewports: stack the panels under the canvas. The three-column
-   row needs 1288px (canvas 484 + strategy 302 + thoughts 462 + gaps 40) */
-@media (max-width: 1287px) {
+/* narrow viewports: stack the panels under the canvas. The wide row needs
+   966px (canvas column 484 + gap 20 + thoughts 462) */
+@media (max-width: 965px) {
   .stage { flex-direction: column; align-items: center; }
-  .strategy { width: auto; max-width: 480px; max-height: 220px; }
-  .thinking { width: auto; max-width: 480px; max-height: 260px; }
+  .strategy { width: auto; max-width: 484px; }
+  .thinking { width: auto; max-width: 480px; max-height: 300px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

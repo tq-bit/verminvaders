@@ -9,14 +9,16 @@
 
 <body>
 <main class="stage">
-  <canvas id="game" width="480" height="600"></canvas>
-  <aside id="strategy-panel" class="strategy" hidden aria-live="polite">
-    <header class="strategy__header">
-      <h2 class="strategy__title">Current Strategy</h2>
-      <p class="strategy__status"><span class="strategy__dot" aria-hidden="true"></span><span class="strategy__status-text">Thinking about tuna</span></p>
-    </header>
-    <pre id="strategy-body" class="strategy__body"></pre>
-  </aside>
+  <div class="stage__left">
+    <aside id="strategy-panel" class="strategy" hidden aria-live="polite">
+      <header class="strategy__header">
+        <h2 class="strategy__title">Current Strategy</h2>
+        <p class="strategy__status"><span class="strategy__dot" aria-hidden="true"></span><span class="strategy__status-text">Thinking about tuna</span></p>
+      </header>
+      <pre id="strategy-body" class="strategy__body"></pre>
+    </aside>
+    <canvas id="game" width="480" height="600"></canvas>
+  </div>
   <aside id="thinking-panel" class="thinking" hidden aria-live="polite">
     <header class="thinking__header">
       <h2 class="thinking__title">Le Chonk's thoughts</h2>
