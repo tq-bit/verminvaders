@@ -3,13 +3,369 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="How Verminvaders' AI plays the game, explained for non-developers: two brains, tunable levers, hidden dice, and whether the model can find the game's secret cheat code." />
-<title>Development insights - Verminvaders</title>
+<meta name="description" content="What 50 archived games taught Verminvaders' AI: two failure modes, a dodge sweet spot, the end of camping - and the RNG cheat code the model unlocked once the operator provided the hint." />
+<title>Session findings - Verminvaders</title>
 <link rel="icon" href="../assets/favicon.png" type="image/png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="../assets/site.css" />
+<style>
+  /* ==========================================================================
+     Findings-page additions - chart & stat components.
+     Token-aware: uses the site's design-system variables when present,
+     with the dark-theme values as fallbacks for standalone preview.
+     ========================================================================== */
+  .statstrip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.75rem, 1fr));
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+  .statstrip__item {
+    border: 1px solid rgba(var(--color-primary, 64, 156, 255), 0.16);
+    border-radius: 0.5rem;
+    padding: 0.9rem 1rem;
+    background: rgba(var(--color-surface, 11, 16, 27), 0.5);
+  }
+  .statstrip__value {
+    font-family: var(--font-heading, 'Space Grotesk', system-ui, sans-serif);
+    font-size: 1.35em;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .statstrip__label {
+    color: rgb(var(--color-text-muted, 150, 162, 181));
+    font-size: 0.85em;
+    margin-top: 0.2rem;
+  }
+  .figure--chart {
+    border-radius: 1rem;
+    background: var(--card-background, rgba(11, 16, 27, 0.6));
+    border: 1px solid rgba(var(--color-primary, 64, 156, 255), 0.16);
+    box-shadow: 0 10px 40px var(--color-shadow, rgba(3, 7, 15, 0.45));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 1.25rem 1.25rem 1rem;
+    margin-top: 1.5rem;
+  }
+  .figure--chart svg { width: 100%; height: auto; display: block; }
+  .figure--chart text, .chart-duo text { font-family: inherit; }
+  .figure--chart figcaption,
+  .figure figcaption {
+    color: rgb(var(--color-text-muted, 150, 162, 181));
+    font-size: 0.85em;
+    margin-top: 0.75rem;
+    text-align: center;
+  }
+  .figure--chart .f-c1, .chart-duo .f-c1 { fill: rgb(var(--color-primary, 64, 156, 255)); }
+  .figure--chart .f-c2, .chart-duo .f-c2 { fill: rgb(var(--color-secondary, 178, 122, 255)); }
+  .figure--chart .f-c1-stroke, .chart-duo .f-c1-stroke { stroke: rgb(var(--color-primary, 64, 156, 255)); }
+  .figure--chart .f-c2-stroke, .chart-duo .f-c2-stroke { stroke: rgb(var(--color-secondary, 178, 122, 255)); }
+  .figure--chart .f-tx, .chart-duo .f-tx { fill: rgb(var(--color-text, 238, 243, 250)); }
+  .figure--chart .f-mt, .chart-duo .f-mt { fill: rgb(var(--color-text-muted, 150, 162, 181)); }
+  .figure--chart .s-grid, .chart-duo .s-grid { stroke: rgb(var(--color-border-muted, 35, 44, 64)); stroke-width: 1; }
+  .figure--chart .g-p, .chart-duo .g-p { stop-color: rgb(var(--color-primary, 64, 156, 255)); }
+  .figure--chart .g-s, .chart-duo .g-s { stop-color: rgb(var(--color-secondary, 178, 122, 255)); }
+  .figure--chart .band-off {
+    fill: rgba(var(--color-text-muted, 150, 162, 181), 0.12);
+    stroke: rgb(var(--color-border-muted, 35, 44, 64));
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+  }
+  .figure--chart .t-axis, .chart-duo .t-axis { fill: rgb(var(--color-text-muted, 150, 162, 181)); font-size: 11px; }
+  .figure--chart .t-sess, .chart-duo .t-sess { fill: rgb(var(--color-text-muted, 150, 162, 181)); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .figure--chart .t-best, .chart-duo .t-best { fill: rgb(var(--color-text, 238, 243, 250)); font-size: 11px; font-weight: 600; }
+  .figure--chart .t-val, .chart-duo .t-val { fill: rgb(var(--color-text, 238, 243, 250)); font-size: 12px; font-weight: 600; }
+  .figure--chart .t-pct, .chart-duo .t-pct { fill: rgb(var(--color-on-accent, 255, 255, 255)); font-size: 13px; font-weight: 600; }
+  .figure--chart .t-big, .chart-duo .t-big { fill: rgb(var(--color-text, 238, 243, 250)); font-size: 26px; font-weight: 700; }
+  .figure--chart .t-zone, .chart-duo .t-zone { fill: rgb(var(--color-text, 238, 243, 250)); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+  .figure--chart .t-tick, .chart-duo .t-tick { fill: rgb(var(--color-text-muted, 150, 162, 181)); font-size: 11px; }
+  .figure--chart .t-cap, .chart-duo .t-cap { fill: rgb(var(--color-text-muted, 150, 162, 181)); font-size: 10.5px; }
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.4rem;
+    margin-top: 0.9rem;
+    font-size: 0.85em;
+    color: rgb(var(--color-text-muted, 150, 162, 181));
+  }
+  .chip { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .chip::before { content: ''; width: 0.7rem; height: 0.7rem; border-radius: 9999px; flex: none; }
+  .chip--crumb::before { background: rgb(var(--color-primary, 64, 156, 255)); }
+  .chip--breach::before { background: rgb(var(--color-secondary, 178, 122, 255)); }
+  .chip--wave::before { background: rgb(var(--color-text, 238, 243, 250)); opacity: 0.9; }
+  .chip--grad::before { background: linear-gradient(135deg, rgb(var(--color-primary, 64, 156, 255)), rgb(var(--color-secondary, 178, 122, 255))); }
+  .chip--avg::before { height: 2px; width: 0.9rem; border-radius: 1px; background: rgb(var(--color-text, 238, 243, 250)); opacity: 0.85; }
+  .chart-duo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: 1rem;
+    align-items: stretch;
+    margin-top: 1.5rem;
+  }
+  .chart-duo .card { display: flex; flex-direction: column; }
+  .chart-duo svg { width: 100%; height: auto; display: block; max-width: 320px; margin: 0 auto; }
+  .chart-duo .card:last-child svg { max-width: 460px; }
+  .chart-note {
+    font-size: 0.85em;
+    color: rgb(var(--color-text-muted, 150, 162, 181));
+    margin-top: 0.6rem;
+  }
+  .table-scroller { overflow-x: auto; margin-top: 1.5rem; }
+  .paramtable { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+  .paramtable th {
+    text-align: left;
+    color: rgb(var(--color-text-muted, 150, 162, 181));
+    font-weight: 500;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .paramtable th, .paramtable td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid rgb(var(--color-border-muted, 35, 44, 64));
+    vertical-align: top;
+  }
+  .paramtable td:first-child {
+    font-family: var(--font-heading, 'Space Grotesk', system-ui, sans-serif);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .paramtable td:nth-child(2) {
+    white-space: nowrap;
+    color: rgb(var(--color-primary, 64, 156, 255));
+    font-weight: 600;
+  }
+
+  /* ==========================================================================
+     Standalone preview fallback - a faithful, hand-compiled subset of the
+     qbit design system. Applied only when ../assets/site.css fails to load
+     (the script at the end of <body> adds the .standalone class).
+     ========================================================================== */
+  @keyframes qvMoveGradient {
+    0% { background-position: 0% 50%; }
+    25% { background-position: 50% 100%; }
+    50% { background-position: 100% 50%; }
+    75% { background-position: 50% 0%; }
+    100% { background-position: 0% 50%; }
+  }
+  html.standalone {
+    --color-bg: 5, 8, 16;
+    --color-surface: 11, 16, 27;
+    --color-surface-raised: 17, 24, 39;
+    --color-border-muted: 35, 44, 64;
+    --color-border-strong: 58, 69, 92;
+    --color-text: 238, 243, 250;
+    --color-text-muted: 150, 162, 181;
+    --color-primary: 64, 156, 255;
+    --color-secondary: 178, 122, 255;
+    --color-on-accent: 255, 255, 255;
+    --color-shadow: rgba(3, 7, 15, 0.45);
+    --color-shadow-strong: rgba(3, 7, 15, 0.6);
+    --color-btn-shadow: rgba(64, 156, 255, 0.3);
+    --color-btn-shadow-hover: rgba(64, 156, 255, 0.45);
+    --color-glow-primary: rgba(64, 156, 255, 0.06);
+    --color-glow-secondary: rgba(178, 122, 255, 0.05);
+    --color-selection: rgba(64, 156, 255, 0.35);
+    --color-shine: rgba(255, 255, 255, 0.35);
+    --card-background: linear-gradient(180deg, rgba(var(--color-primary), 0.04), rgba(var(--color-surface), 0.6) 35%);
+    --font-heading: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+    --font-body: Inter, 'Segoe UI', system-ui, sans-serif;
+  }
+  html.standalone * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-body); }
+  html.standalone ::selection { background: var(--color-selection); color: rgb(var(--color-on-accent)); }
+  html.standalone body {
+    background:
+      radial-gradient(1100px 700px at 85% -10%, var(--color-glow-primary), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, var(--color-glow-secondary), transparent 60%),
+      rgb(var(--color-bg));
+    background-attachment: fixed;
+    color: rgb(var(--color-text));
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.7;
+  }
+  html.standalone h1, html.standalone h2, html.standalone h3, html.standalone h4 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+  html.standalone h1 { font-size: 2.25em; }
+  html.standalone h2 { font-size: 1.6em; margin: 0.5rem 0 1rem; }
+  html.standalone h3 { font-size: 1.15em; margin: 1.5rem 0 0.75rem; }
+  html.standalone p { line-height: 1.7; }
+  html.standalone a { color: rgb(var(--color-text)); text-decoration: none; transition: color 0.2s ease-out; }
+  html.standalone a:hover { color: rgb(var(--color-primary)); }
+  html.standalone .container { width: min(95%, 72rem); margin-inline: auto; }
+  html.standalone .section { padding: 2.75rem 0; }
+  html.standalone .section__eyebrow {
+    font-family: var(--font-heading);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.8em;
+    margin-bottom: 0.75rem;
+    background: linear-gradient(45deg, rgb(var(--color-primary)) 0%, rgb(var(--color-secondary)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  html.standalone .section__title { font-size: 2.25em; margin-bottom: 1rem; }
+  html.standalone .section__lead { font-size: 1.125em; color: rgb(var(--color-text-muted)); max-width: 65ch; }
+  html.standalone .prose p { margin-bottom: 1rem; }
+  html.standalone .prose ul { margin: 0 0 1rem 1.25rem; }
+  html.standalone .prose li { margin-bottom: 0.35rem; line-height: 1.6; }
+  html.standalone .backlink { display: inline-block; margin-bottom: 1.25rem; color: rgb(var(--color-text-muted)); font-size: 0.9em; }
+  html.standalone .muted { color: rgb(var(--color-text-muted)); }
+  html.standalone .gradient-text {
+    background: linear-gradient(45deg, rgb(var(--color-primary)) 0%, rgb(var(--color-secondary)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  html.standalone .gradient-text--animated { animation: qvMoveGradient 5s linear infinite; background-size: 200% 200%; }
+  html.standalone .link-underline { position: relative; }
+  html.standalone .link-underline::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    width: 100%;
+    height: 1.5px;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, rgb(var(--color-primary)), rgb(var(--color-secondary)));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.25s ease-out;
+  }
+  html.standalone .link-underline:hover::after { transform: scaleX(1); }
+  html.standalone .skip-link {
+    position: absolute;
+    top: -52px;
+    left: 0;
+    margin: 12px;
+    padding: 8px;
+    z-index: 999;
+    border-radius: 0.5rem;
+    background: rgb(var(--color-primary));
+    color: rgb(var(--color-on-accent)) !important;
+    transition: top 0.3s ease;
+  }
+  html.standalone .skip-link:focus { top: 0; }
+  html.standalone .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    padding: 0.5rem 0;
+    background-color: rgba(var(--color-surface), 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px var(--color-shadow);
+  }
+  html.standalone .navbar__inner {
+    width: min(95%, 72rem);
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  html.standalone .navbar__brand { font-family: var(--font-heading); font-weight: 700; }
+  html.standalone .navbar__links { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; font-size: 0.95em; }
+  html.standalone .navbar__link { color: rgb(var(--color-text-muted)); }
+  html.standalone .navbar__link:hover { color: rgb(var(--color-primary)); }
+  html.standalone .btn {
+    cursor: pointer;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    border: none;
+    border-radius: 9999px;
+    padding: 0.45rem 1rem;
+    display: inline-block;
+    font-size: 0.95em;
+    background: transparent;
+    color: rgb(var(--color-text));
+    transition: transform 0.2s ease-out, box-shadow 0.25s ease-out, filter 0.25s ease-out, border-color 0.25s ease-out, background-color 0.25s ease-out, color 0.25s ease-out;
+  }
+  html.standalone .btn:hover { background-color: rgba(var(--color-primary), 0.12); }
+  html.standalone .btn--primary {
+    color: rgb(var(--color-on-accent)) !important;
+    background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-secondary)) 100%);
+    box-shadow: 0 4px 18px var(--color-btn-shadow);
+  }
+  html.standalone .btn--primary:hover { filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 8px 28px var(--color-btn-shadow-hover); }
+  html.standalone .btn--muted { border: 1px solid rgb(var(--color-border-strong)); }
+  html.standalone .btn--muted:hover { border-color: rgba(var(--color-primary), 0.6); }
+  html.standalone .card {
+    border-radius: 1rem;
+    background: var(--card-background);
+    box-shadow: 0 10px 40px var(--color-shadow);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(var(--color-primary), 0.16);
+    color: rgb(var(--color-text));
+    padding: 2rem;
+    transition: border-color 0.3s ease-out, box-shadow 0.3s ease-out;
+  }
+  html.standalone .card-hover:hover {
+    border-color: rgba(var(--color-primary), 0.32);
+    box-shadow: 0 14px 48px var(--color-shadow-strong), 0 0 24px rgba(var(--color-primary), 0.1);
+  }
+  html.standalone .card h3 { margin-bottom: 0.6rem; }
+  html.standalone .card__body { color: rgb(var(--color-text-muted)); line-height: 1.6; font-size: 0.97em; }
+  html.standalone .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 1rem; }
+  html.standalone .callout {
+    border-radius: 1rem;
+    background: var(--card-background);
+    border: 1px solid rgba(var(--color-primary), 0.16);
+    border-left: 3px solid rgb(var(--color-secondary));
+    box-shadow: 0 10px 40px var(--color-shadow);
+    padding: 1.25rem 1.5rem;
+    margin-top: 1.5rem;
+  }
+  html.standalone .figure { margin: 1.5rem 0; }
+  html.standalone figure img { max-width: 100%; display: block; }
+  html.standalone .figure__frame {
+    border-radius: 1rem;
+    background: var(--card-background);
+    border: 1px solid rgba(var(--color-primary), 0.16);
+    box-shadow: 0 10px 40px var(--color-shadow);
+    padding: 1rem;
+  }
+  html.standalone .footer {
+    background: rgba(var(--color-surface), 0.6);
+    border-top: 1px solid rgba(var(--color-primary), 0.16);
+    padding: 2rem 0 2.5rem;
+    margin-top: 2rem;
+  }
+  html.standalone .footer__inner { display: flex; flex-direction: column; gap: 1rem; align-items: center; text-align: center; }
+  html.standalone .footer__links { list-style: none; display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
+  html.standalone .footer__link { color: rgb(var(--color-text-muted)); font-size: 0.9em; }
+  html.standalone .footer__link:hover { color: rgb(var(--color-primary)); }
+  html.standalone .footer__copyright { color: rgb(var(--color-text-muted)); font-size: 0.85em; }
+
+  /* ==========================================================================
+     Standalone spacing patch. The universal reset above (html.standalone *)
+     zeroes margins and padding at higher specificity than the component rules
+     at the top of this stylesheet, which would flatten the stat tiles, chart
+     frames, legends and table cells in the preview. These re-declarations
+     restore that spacing - and carry the site's card padding (2rem, as in
+     the project stylesheet). No-op in production, where site.css loads.
+     ========================================================================== */
+  html.standalone .statstrip { margin-top: 1.5rem; }
+  html.standalone .statstrip__item { padding: 0.9rem 1rem; }
+  html.standalone .statstrip__value { font-family: var(--font-heading); }
+  html.standalone .statstrip__label { margin-top: 0.2rem; }
+  html.standalone .figure--chart { padding: 1.25rem 1.25rem 1rem; margin-top: 1.5rem; }
+  html.standalone .figure--chart figcaption,
+  html.standalone .figure figcaption { margin-top: 0.75rem; }
+  html.standalone .chart-legend { margin-top: 0.9rem; }
+  html.standalone .chart-duo { margin-top: 1.5rem; }
+  html.standalone .chart-duo svg { margin: 0 auto; }
+  html.standalone .chart-note { margin-top: 0.6rem; }
+  html.standalone .table-scroller { margin-top: 1.5rem; }
+  html.standalone .paramtable th,
+  html.standalone .paramtable td { padding: 0.6rem 0.75rem; }
+</style>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -28,233 +384,574 @@
 
 <main id="main">
   <div class="container">
-    <section class="section" id="insights-intro" style="padding-top: 3rem;">
+    <section class="section" id="findings-intro" style="padding-top: 3rem;">
       <a class="backlink" href="../">&larr; Back to the landing page</a>
-      <p class="section__eyebrow">Development insights</p>
+      <p class="section__eyebrow">Session findings</p>
       <h1 class="section__title" style="font-size: clamp(1.75em, 5vw, 2.75em);">
-        How the <span class="gradient-text gradient-text--animated">AI</span> plays Verminvaders
+        What fifty games taught the <span class="gradient-text gradient-text--animated">AI</span>
       </h1>
       <p class="section__lead prose">
-        This page retells the project's development guide for everyone who did not
-        build it. No code, no file paths - just what the AI sees, what it is allowed
-        to change, and the two little research mysteries that came out of it.
+        The strategist's archive has grown into eight sessions and fifty game-over
+        records - a full season of AI play. This page reads it the way a sports desk
+        reads a season: the scoreboard, the two ways every run ended, the habits the
+        model wrote into its own memory, and the answer to the treasure hunt the
+        development insights page left open.
+      </p>
+      <div class="statstrip" role="list" aria-label="Season statistics">
+        <div class="statstrip__item" role="listitem">
+          <div class="statstrip__value"><span class="gradient-text">50</span></div>
+          <div class="statstrip__label">game-overs across eight archived sessions</div>
+        </div>
+        <div class="statstrip__item" role="listitem">
+          <div class="statstrip__value"><span class="gradient-text">2,780</span></div>
+          <div class="statstrip__label">best score - wave 4, on seed 3031</div>
+        </div>
+        <div class="statstrip__item" role="listitem">
+          <div class="statstrip__value"><span class="gradient-text">776 s</span></div>
+          <div class="statstrip__label">longest single run</div>
+        </div>
+        <div class="statstrip__item" role="listitem">
+          <div class="statstrip__value"><span class="gradient-text">32%</span></div>
+          <div class="statstrip__label">of runs cleared wave 1 (16 of 50)</div>
+        </div>
+        <div class="statstrip__item" role="listitem">
+          <div class="statstrip__value"><span class="gradient-text">1,059</span></div>
+          <div class="statstrip__label">average score per game</div>
+        </div>
+        <div class="statstrip__item" role="listitem">
+          <div class="statstrip__value"><span class="gradient-text">26 / 24</span></div>
+          <div class="statstrip__label">crumb deaths vs lasagna breaches</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ scoreboard ============ -->
+    <section class="section prose" id="scoreboard" aria-labelledby="scoreboard-title">
+      <p class="section__eyebrow">The archive</p>
+      <h2 id="scoreboard-title">Fifty games, one learning curve</h2>
+      <p>
+        One bar per archived game, in the order the sessions were played. Blue bars
+        are runs that lost all three lives to crumbs; purple bars are runs lost when
+        a rodent reached the lasagna line; a white dot marks a run that at least
+        cleared wave one.
+      </p>
+      <figure class="figure figure--chart">
+        <svg viewBox="0 0 760 296" role="img" aria-label="Bar chart: score of each of the 50 archived games, colored by failure mode" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <line x1="46" y1="280.0" x2="752" y2="280.0" class="s-grid" stroke-width="1.5"/>
+  <text x="38" y="284.0" text-anchor="end" class="t-axis">0</text>
+  <line x1="46" y1="205.3" x2="752" y2="205.3" class="s-grid"/>
+  <text x="38" y="209.3" text-anchor="end" class="t-axis">1k</text>
+  <line x1="46" y1="130.7" x2="752" y2="130.7" class="s-grid"/>
+  <text x="38" y="134.7" text-anchor="end" class="t-axis">2k</text>
+  <line x1="46" y1="56.0" x2="752" y2="56.0" class="s-grid"/>
+  <text x="38" y="60.0" text-anchor="end" class="t-axis">3k</text>
+  <line x1="116.6" y1="38" x2="116.6" y2="280" class="s-grid" stroke-dasharray="2 4"/>
+  <line x1="187.2" y1="38" x2="187.2" y2="280" class="s-grid" stroke-dasharray="2 4"/>
+  <line x1="257.8" y1="38" x2="257.8" y2="280" class="s-grid" stroke-dasharray="2 4"/>
+  <line x1="399" y1="38" x2="399" y2="280" class="s-grid" stroke-dasharray="2 4"/>
+  <line x1="540.2" y1="38" x2="540.2" y2="280" class="s-grid" stroke-dasharray="2 4"/>
+  <line x1="610.8" y1="38" x2="610.8" y2="280" class="s-grid" stroke-dasharray="2 4"/>
+  <line x1="681.4" y1="38" x2="681.4" y2="280" class="s-grid" stroke-dasharray="2 4"/>
+  <text x="81.3" y="26" text-anchor="middle" class="t-sess">Session 1</text>
+  <text x="151.9" y="26" text-anchor="middle" class="t-sess">Session 2</text>
+  <text x="222.5" y="26" text-anchor="middle" class="t-sess">Session 3</text>
+  <text x="328.4" y="26" text-anchor="middle" class="t-sess">Session 4</text>
+  <text x="469.6" y="26" text-anchor="middle" class="t-sess">Session 5</text>
+  <text x="575.5" y="26" text-anchor="middle" class="t-sess">Session 6</text>
+  <text x="646.1" y="26" text-anchor="middle" class="t-sess">Session 7</text>
+  <text x="716.7" y="26" text-anchor="middle" class="t-sess">Session 8</text>
+  <rect x="48.6" y="207.6" width="9" height="72.4" rx="2" class="f-c1"/>
+  <rect x="62.7" y="88.1" width="9" height="191.9" rx="2" class="f-c2"/>
+  <circle cx="67.2" cy="80.1" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="76.8" y="265.1" width="9" height="14.9" rx="2" class="f-c1"/>
+  <rect x="90.9" y="147.8" width="9" height="132.2" rx="2" class="f-c2"/>
+  <circle cx="95.4" cy="139.8" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="105" y="222.5" width="9" height="57.5" rx="2" class="f-c2"/>
+  <rect x="119.2" y="222.5" width="9" height="57.5" rx="2" class="f-c1"/>
+  <rect x="133.3" y="184.4" width="9" height="95.6" rx="2" class="f-c2"/>
+  <rect x="147.4" y="223.3" width="9" height="56.7" rx="2" class="f-c1"/>
+  <rect x="161.5" y="192.6" width="9" height="87.4" rx="2" class="f-c2"/>
+  <rect x="175.6" y="126.9" width="9" height="153.1" rx="2" class="f-c2"/>
+  <circle cx="180.1" cy="118.9" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="189.8" y="192.6" width="9" height="87.4" rx="2" class="f-c1"/>
+  <rect x="203.9" y="201.6" width="9" height="78.4" rx="2" class="f-c2"/>
+  <rect x="218" y="192.6" width="9" height="87.4" rx="2" class="f-c1"/>
+  <rect x="232.1" y="256.1" width="9" height="23.9" rx="2" class="f-c1"/>
+  <rect x="246.2" y="222.5" width="9" height="57.5" rx="2" class="f-c2"/>
+  <rect x="260.4" y="192.6" width="9" height="87.4" rx="2" class="f-c1"/>
+  <rect x="274.5" y="201.6" width="9" height="78.4" rx="2" class="f-c2"/>
+  <rect x="288.6" y="192.6" width="9" height="87.4" rx="2" class="f-c1"/>
+  <rect x="302.7" y="256.1" width="9" height="23.9" rx="2" class="f-c1"/>
+  <rect x="316.8" y="222.5" width="9" height="57.5" rx="2" class="f-c2"/>
+  <rect x="331" y="214.3" width="9" height="65.7" rx="2" class="f-c1"/>
+  <rect x="345.1" y="200.9" width="9" height="79.1" rx="2" class="f-c1"/>
+  <circle cx="349.6" cy="192.9" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="359.2" y="227.7" width="9" height="52.3" rx="2" class="f-c1"/>
+  <rect x="373.3" y="209.8" width="9" height="70.2" rx="2" class="f-c1"/>
+  <rect x="387.4" y="212.1" width="9" height="67.9" rx="2" class="f-c2"/>
+  <rect x="401.6" y="162.8" width="9" height="117.2" rx="2" class="f-c2"/>
+  <circle cx="406.1" cy="154.8" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="415.7" y="229.2" width="9" height="50.8" rx="2" class="f-c2"/>
+  <rect x="429.8" y="259.8" width="9" height="20.2" rx="2" class="f-c1"/>
+  <rect x="443.9" y="72.4" width="9" height="207.6" rx="2" class="f-c1" stroke="rgba(238,243,250,0.7)" stroke-width="1"/>
+  <text x="448.4" y="60.4" text-anchor="middle" class="t-best">2,780 &middot; wave 4</text>
+  <rect x="458" y="218.8" width="9" height="61.2" rx="2" class="f-c1"/>
+  <circle cx="462.5" cy="210.8" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="472.2" y="224.7" width="9" height="55.3" rx="2" class="f-c2"/>
+  <rect x="486.3" y="231.5" width="9" height="48.5" rx="2" class="f-c1"/>
+  <rect x="500.4" y="229.2" width="9" height="50.8" rx="2" class="f-c1"/>
+  <rect x="514.5" y="222.5" width="9" height="57.5" rx="2" class="f-c2"/>
+  <rect x="528.6" y="162.8" width="9" height="117.2" rx="2" class="f-c1"/>
+  <circle cx="533.1" cy="154.8" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="542.8" y="222.5" width="9" height="57.5" rx="2" class="f-c2"/>
+  <rect x="556.9" y="218.8" width="9" height="61.2" rx="2" class="f-c1"/>
+  <circle cx="561.4" cy="210.8" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="571" y="99.3" width="9" height="180.7" rx="2" class="f-c1"/>
+  <circle cx="575.5" cy="91.3" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="585.1" y="229.2" width="9" height="50.8" rx="2" class="f-c2"/>
+  <rect x="599.2" y="222.5" width="9" height="57.5" rx="2" class="f-c2"/>
+  <rect x="613.4" y="169.5" width="9" height="110.5" rx="2" class="f-c1"/>
+  <circle cx="617.9" cy="161.5" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="627.5" y="224.7" width="9" height="55.3" rx="2" class="f-c2"/>
+  <rect x="641.6" y="227" width="9" height="53" rx="2" class="f-c2"/>
+  <rect x="655.7" y="224.7" width="9" height="55.3" rx="2" class="f-c2"/>
+  <rect x="669.8" y="217.3" width="9" height="62.7" rx="2" class="f-c1"/>
+  <circle cx="674.3" cy="209.3" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="684" y="222.5" width="9" height="57.5" rx="2" class="f-c2"/>
+  <rect x="698.1" y="209.1" width="9" height="70.9" rx="2" class="f-c1"/>
+  <circle cx="702.6" cy="201.1" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="712.2" y="198.6" width="9" height="81.4" rx="2" class="f-c1"/>
+  <circle cx="716.7" cy="190.6" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="726.3" y="159" width="9" height="121" rx="2" class="f-c2"/>
+  <circle cx="730.8" cy="151" r="2.2" class="f-tx" fill-opacity="0.9"/>
+  <rect x="740.4" y="109.8" width="9" height="170.2" rx="2" class="f-c2"/>
+  <circle cx="744.9" cy="101.8" r="2.2" class="f-tx" fill-opacity="0.9"/>
+</svg>
+        <div class="chart-legend" aria-hidden="true">
+          <span class="chip chip--crumb">lost all lives to crumbs</span>
+          <span class="chip chip--breach">rodent reached the lasagna line</span>
+          <span class="chip chip--wave">cleared at least wave 1</span>
+        </div>
+        <figcaption>Every archived game-over, in play order. The dashed dividers separate the eight sessions.</figcaption>
+      </figure>
+      <p>
+        The curve is not a straight line up. The second game ever played is still the
+        second-best run in the archive - 2,570 points and a wave-three finish - after
+        which the model talked itself into an increasingly defensive posture. Sessions
+        three and four bottom out: best scores of 1,170, averages near 900, and almost
+        no wave-two finishes. The recovery came in two stages: sessions five and six
+        restored the aggression (risk appetite 9 at three lives), and then - see
+        further down - the archive settles onto a single lucky seed for good.
+      </p>
+      <figure class="figure figure--chart">
+        <svg viewBox="0 0 760 296" role="img" aria-label="Bar chart: best and average score per session - best scores 2,570, 2,050, 1,170, 1,170, 2,780, 2,420, 1,480 and 2,280" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs><linearGradient id="chGradS" x1="0" y1="1" x2="1" y2="0"><stop offset="0" class="g-p"/><stop offset="1" class="g-s"/></linearGradient></defs>
+  <line x1="50" y1="250" x2="740" y2="250" class="s-grid" stroke-width="1.5"/>
+  <text x="42" y="254" text-anchor="end" class="t-axis">0</text>
+  <line x1="50" y1="180" x2="740" y2="180" class="s-grid"/>
+  <text x="42" y="184" text-anchor="end" class="t-axis">1k</text>
+  <line x1="50" y1="110" x2="740" y2="110" class="s-grid"/>
+  <text x="42" y="114" text-anchor="end" class="t-axis">2k</text>
+  <line x1="50" y1="40" x2="740" y2="40" class="s-grid"/>
+  <text x="42" y="44" text-anchor="end" class="t-axis">3k</text>
+  <rect x="67.1" y="70.1" width="52" height="179.9" rx="3" fill="url(#chGradS)"/>
+  <text x="93.1" y="60.1" text-anchor="middle" class="t-val">2,570</text>
+  <rect x="72.1" y="160.8" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="93.1" y="272" text-anchor="middle" class="t-sess">Session 1</text>
+  <text x="93.1" y="290" text-anchor="middle" class="t-cap">best: wave 3</text>
+  <rect x="153.4" y="106.5" width="52" height="143.5" rx="3" fill="url(#chGradS)"/>
+  <text x="179.4" y="96.5" text-anchor="middle" class="t-val">2,050</text>
+  <rect x="158.4" y="164.3" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="179.4" y="272" text-anchor="middle" class="t-sess">Session 2</text>
+  <text x="179.4" y="290" text-anchor="middle" class="t-cap">best: wave 2</text>
+  <rect x="239.6" y="168.1" width="52" height="81.9" rx="3" fill="url(#chGradS)"/>
+  <text x="265.6" y="158.1" text-anchor="middle" class="t-val">1,170</text>
+  <rect x="244.6" y="186" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="265.6" y="272" text-anchor="middle" class="t-sess">Session 3</text>
+  <text x="265.6" y="290" text-anchor="middle" class="t-cap">best: wave 1</text>
+  <rect x="325.9" y="168.1" width="52" height="81.9" rx="3" fill="url(#chGradS)"/>
+  <text x="351.9" y="158.1" text-anchor="middle" class="t-val">1,170</text>
+  <rect x="330.9" y="186" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="351.9" y="272" text-anchor="middle" class="t-sess">Session 4</text>
+  <text x="351.9" y="290" text-anchor="middle" class="t-cap">best: wave 2</text>
+  <rect x="412.1" y="55.4" width="52" height="194.6" rx="3" fill="url(#chGradS)"/>
+  <text x="438.1" y="45.4" text-anchor="middle" class="t-val">2,780</text>
+  <rect x="417.1" y="175" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="438.1" y="272" text-anchor="middle" class="t-sess">Session 5</text>
+  <text x="438.1" y="290" text-anchor="middle" class="t-cap">best: wave 4</text>
+  <rect x="498.4" y="80.6" width="52" height="169.4" rx="3" fill="url(#chGradS)"/>
+  <text x="524.4" y="70.6" text-anchor="middle" class="t-val">2,420</text>
+  <rect x="503.4" y="172.3" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="524.4" y="272" text-anchor="middle" class="t-sess">Session 6</text>
+  <text x="524.4" y="290" text-anchor="middle" class="t-cap">best: wave 4</text>
+  <rect x="584.6" y="146.4" width="52" height="103.6" rx="3" fill="url(#chGradS)"/>
+  <text x="610.6" y="136.4" text-anchor="middle" class="t-val">1,480</text>
+  <rect x="589.6" y="185.6" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="610.6" y="272" text-anchor="middle" class="t-sess">Session 7</text>
+  <text x="610.6" y="290" text-anchor="middle" class="t-cap">best: wave 2</text>
+  <rect x="670.9" y="90.4" width="52" height="159.6" rx="3" fill="url(#chGradS)"/>
+  <text x="696.9" y="80.4" text-anchor="middle" class="t-val">2,280</text>
+  <rect x="675.9" y="154.8" width="42" height="2.5" rx="1.25" class="f-tx" fill-opacity="0.85"/>
+  <text x="696.9" y="272" text-anchor="middle" class="t-sess">Session 8</text>
+  <text x="696.9" y="290" text-anchor="middle" class="t-cap">best: wave 3</text>
+</svg>
+        <div class="chart-legend" aria-hidden="true">
+          <span class="chip chip--grad">best score of the session</span>
+          <span class="chip chip--avg">average score of the session</span>
+        </div>
+        <figcaption>Best and average score per session. The mid-archive dip is the over-defensive era; the late surge is aggression restored - plus a lucky seed now used exclusively.</figcaption>
+      </figure>
+      <p>
+        The averages carry the story: for seven sessions nothing matched the first
+        session's 1,256-point average - then session eight closed the season at 1,342,
+        the highest of the archive, powered by a 2,280-point wave-three finish. Surviving
+        a long time, it turns out, is still not the same as scoring: the three longest
+        runs of the archive - 601, 660 and 776 seconds - all ended in crumb deaths
+        anyway, while the 2,780-point record needed only 285 seconds.
       </p>
     </section>
 
-    <!-- ============ two brains ============ -->
-    <section class="section prose" id="two-brains" aria-labelledby="two-brains-title">
-      <p class="section__eyebrow">The architecture</p>
-      <h2 id="two-brains-title">Two brains, one cat</h2>
+    <!-- ============ endings ============ -->
+    <section class="section prose" id="endings" aria-labelledby="endings-title">
+      <p class="section__eyebrow">Failure analysis</p>
+      <h2 id="endings-title">Two ways to lose, almost evenly split</h2>
       <p>
-        Making a language model play a reflex game in real time is a bad idea - by
-        the time the model finished composing an answer, the crumb would have landed.
-        So the cat is driven by two cooperating layers with strictly separated jobs:
+        The model's memory opens with a rule the archive bears out: there are two
+        failure modes - losing all lives to falling crumbs, or letting any single
+        rodent reach the lasagna line - and both are total failure, at any score.
+        Across fifty games the split stays nearly even:
       </p>
-      <div class="insight-grid" style="margin-top: 1.5rem;">
+      <div class="chart-duo">
         <div class="card card-hover">
-          <h3>The executor - fast but dumb</h3>
-          <p class="card__body">
-            Plain, deterministic code. Every 80 milliseconds it looks at the game and
-            decides one thing: is this a moment to dodge, to reposition, or to shoot?
-            It never talks to the internet. It is the cat's spinal cord.
-          </p>
+          <h3>How the fifty ended</h3>
+          <svg viewBox="0 0 240 240" role="img" aria-label="Donut chart: 26 of 50 games ended by crumb hits, 24 by a rodent reaching the lasagna line" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+            <path d="M 120 42 A 78 78 0 1 1 110.2 197.4" class="f-c1-stroke" fill="none" stroke-width="30"/>
+            <path d="M 110.2 197.4 A 78 78 0 0 1 120 42" class="f-c2-stroke" fill="none" stroke-width="30"/>
+            <text x="197.8" y="128.9" text-anchor="middle" class="t-pct">52%</text>
+            <text x="42.2" y="119.1" text-anchor="middle" class="t-pct">48%</text>
+            <text x="120" y="118" text-anchor="middle" class="t-big">50</text>
+            <text x="120" y="140" text-anchor="middle" class="t-axis">games</text>
+          </svg>
+          <div class="chart-legend" aria-hidden="true">
+            <span class="chip chip--crumb">26 &times; crumbs</span>
+            <span class="chip chip--breach">24 &times; breach</span>
+          </div>
         </div>
         <div class="card card-hover">
-          <h3>The strategist - smart but slow</h3>
-          <p class="card__body">
-            Mistral's <em>mistral-large-4</em> model. It never touches the controls.
-            It reads a report of how the wave is going and decides <em>how the
-            executor's reflexes should be weighted</em> - the cat's personality, if
-            you will. It is the cat's brain - and it reasons in the background,
-            mid-heartbeat, while the spinal cord keeps the cat alive.
-          </p>
+          <h3>How deep the runs got</h3>
+          <svg viewBox="0 0 460 236" role="img" aria-label="Bar chart: how many games ended on each wave - 34 on wave 1, 12 on wave 2, 2 on wave 3, 2 on wave 4" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+            <defs><linearGradient id="chGradW" x1="0" y1="1" x2="1" y2="0"><stop offset="0" class="g-p"/><stop offset="1" class="g-s"/></linearGradient></defs>
+            <line x1="40" y1="200" x2="450" y2="200" class="s-grid" stroke-width="1.5"/>
+            <rect x="57" y="50" width="56" height="150" rx="3" class="f-mt" fill-opacity="0.45"/>
+            <text x="85" y="42" text-anchor="middle" class="t-val">34</text>
+            <text x="85" y="222" text-anchor="middle" class="t-axis">wave 1</text>
+            <rect x="167" y="147.1" width="56" height="52.9" rx="3" class="f-c1"/>
+            <text x="195" y="139.1" text-anchor="middle" class="t-val">12</text>
+            <text x="195" y="222" text-anchor="middle" class="t-axis">wave 2</text>
+            <rect x="277" y="191.2" width="56" height="8.8" rx="3" class="f-c2"/>
+            <text x="305" y="183.2" text-anchor="middle" class="t-val">2</text>
+            <text x="305" y="222" text-anchor="middle" class="t-axis">wave 3</text>
+            <rect x="387" y="191.2" width="56" height="8.8" rx="3" fill="url(#chGradW)"/>
+            <text x="415" y="183.2" text-anchor="middle" class="t-val">2</text>
+            <text x="415" y="222" text-anchor="middle" class="t-axis">wave 4</text>
+          </svg>
+          <p class="chart-note">The wave a run ended on - under a third of all games ever cleared wave one, and no run survived wave four.</p>
         </div>
       </div>
       <p>
-        The only channel between them is a small set of numbers - the executor's
-        tuning levers - plus the strategist's own notebook, which it keeps between
-        games. Everything the model wants must fit through that narrow door.
+        The breach games are practically carbon copies of one another. The cat parks
+        on one side of the arena - usually far left, somewhere between x=36 and x=145 -
+        while the last rodents march on the opposite side, often behind an intact
+        shield; the executor refuses to cross, and the rodent strolls to the line. The
+        closing session added two variations on the script: a cat pinned behind a
+        shield it never chewed through, and a rat that slipped below the muzzle's
+        minimum reach. The counter-measure the model converged on is blunt: make
+        walking free (<em>travelCost = 0</em>) and never respect a shield that hides
+        a rodent.
       </p>
-      <figure class="figure figure--wide card figure__frame" style="max-width: 720px; margin-top: 1.5rem;">
-        <img src="../assets/shot-ai-playing.png" alt="The game window with the strategy panel and the thinking panel streamed live next to the canvas." loading="lazy" />
-        <figcaption>Both brains on screen: the settled strategy above the stage, the model's raw reasoning chain streamed on the right</figcaption>
+      <p>
+        The crumb deaths are the mirror image: the cat was roughly where it wanted to
+        be, but the reaction came too late - final blows landed 0.19 to 0.27 seconds
+        before impact, several of them from crumbs spawning at the arena's edge, where
+        a dodge has nowhere to go. The threat also escalates: from wave two on, crumbs
+        fall at 158 pixels per second instead of wave one's 144, and several of the
+        late crumb deaths came exactly at that speed. The counter-measure: react
+        earlier, but never dodge a crumb that is not actually imminent.
+      </p>
+      <p>
+        The tension is that each failure mode's fix feeds the other: dodging harder
+        causes the passivity that breeds breaches, dodging less causes crumb deaths.
+        The model's resolution, now a standing rule in its memory: dodge only when a
+        crumb is within 0.3 seconds of impact - otherwise, shoot.
+      </p>
+    </section>
+
+    <!-- ============ lessons ============ -->
+    <section class="section prose" id="lessons" aria-labelledby="lessons-title">
+      <p class="section__eyebrow">Durable lessons</p>
+      <h2 id="lessons-title">What the model wrote into memory</h2>
+      <p>
+        Eight habits survived the season - each one earned the hard way, and each now
+        phrased as a standing order in the strategist's notes:
+      </p>
+      <div class="insight-grid" style="margin-top: 1.5rem;">
+        <div class="card card-hover">
+          <h3>Camping is fatal</h3>
+          <p class="card__body">
+            Every lasagna breach follows the same script: the cat holds one side while
+            deep rodents march on the other. The standing order is a walking price of
+            zero - nothing may ever discourage a full-width pursuit, even at one life.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>The dodge sweet spot</h3>
+          <p class="card__body">
+            Below 1.2 seconds the cat reacts too late to close-range crumbs; above
+            1.5 it enters dodge loops - long, busy survival with almost nothing shot.
+            The settled dial is 1.3 seconds, widened to 1.4 once wave-two crumbs
+            fall at 158 pixels per second.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>Aggression scales with lives</h3>
+          <p class="card__body">
+            Risk appetite [9, 7, 6&ndash;7]: maximally aggressive at three lives, still
+            hunting at one. Caution at one life must never become passivity - values
+            below 5 caused breaches, and the one game played defensively from the
+            start scored 200 points.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>Shields are doors, not walls</h3>
+          <p class="card__body">
+            Avoiding an intact shield column feels safe and loses games: shielded
+            rodents march to the line unchallenged - and in the season's deepest
+            recent run, the cat died pinned behind a shield it never chewed through.
+            The settled rules: a low shield penalty and permission to chew through,
+            at every life count.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>Long life, low score is an alarm</h3>
+          <p class="card__body">
+            The model wrote its own diagnostic: surviving more than 200 seconds on
+            wave one with under 1,000 points means the executor is dodge-looping. The
+            worst run scored 1.4 points per second; the best scored 9.7.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>Keep the enemy fire diluted</h3>
+          <p class="card__body">
+            Killing a column's last rodent feels like progress and backfires: the
+            survivors concentrate their crumb fire into fewer columns. The fix is a
+            deliberate spread weight of 7 to 8 - sometimes leaving shooters alive on
+            purpose.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>The left edge is a dead zone</h3>
+          <p class="card__body">
+            The cannon cannot fire left of x=54, and a rodent that marches past that
+            line is unhittable. The season's deepest recent run died exactly like
+            this: a rat at x=16, out of reach, while the rest breached. The order:
+            kill rodents before they march off-screen left, or wait for them to
+            return.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>Every wave starts closer</h3>
+          <p class="card__body">
+            Each wave spawns lower than the last: wave two's bottom row starts
+            barely 58 pixels above the lasagna line, wave three about 30 - and the
+            crumbs fall faster with every wave. Clearing the deepest row immediately
+            is not a preference; it is the whole game.
+          </p>
+        </div>
+      </div>
+      <figure class="figure figure--chart">
+        <svg viewBox="0 0 760 144" role="img" aria-label="Dodge horizon spectrum: below 1.2 seconds crumb deaths, 1.2 to 1.4 seconds is the sweet spot, above 1.5 seconds causes dodge loops" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+          <defs><linearGradient id="chGradB" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="g-p"/><stop offset="1" class="g-s"/></linearGradient></defs>
+          <rect x="82.5" y="48" width="170" height="32" rx="8" class="band-off"/>
+          <text x="167.5" y="38" text-anchor="middle" class="t-zone">cuts it too close</text>
+          <rect x="252.5" y="48" width="170" height="32" rx="8" fill="url(#chGradB)"/>
+          <text x="337.5" y="38" text-anchor="middle" class="t-zone">the sweet spot</text>
+          <rect x="507.5" y="48" width="85" height="32" rx="8" class="band-off"/>
+          <text x="550" y="38" text-anchor="middle" class="t-zone">dodge loops</text>
+          <line x1="82.5" y1="82" x2="82.5" y2="88" class="s-grid"/>
+          <line x1="167.5" y1="82" x2="167.5" y2="88" class="s-grid"/>
+          <line x1="252.5" y1="82" x2="252.5" y2="88" class="s-grid"/>
+          <line x1="337.5" y1="82" x2="337.5" y2="88" class="s-grid"/>
+          <line x1="422.5" y1="82" x2="422.5" y2="88" class="s-grid"/>
+          <line x1="507.5" y1="82" x2="507.5" y2="88" class="s-grid"/>
+          <line x1="592.5" y1="82" x2="592.5" y2="88" class="s-grid"/>
+          <text x="82.5" y="102" text-anchor="middle" class="t-tick">1.0 s</text>
+          <text x="167.5" y="102" text-anchor="middle" class="t-tick">1.1 s</text>
+          <text x="252.5" y="102" text-anchor="middle" class="t-tick">1.2 s</text>
+          <text x="337.5" y="102" text-anchor="middle" class="t-tick">1.3 s</text>
+          <text x="422.5" y="102" text-anchor="middle" class="t-tick">1.4 s</text>
+          <text x="507.5" y="102" text-anchor="middle" class="t-tick">1.5 s</text>
+          <text x="592.5" y="102" text-anchor="middle" class="t-tick">1.6 s</text>
+          <text x="167.5" y="120" text-anchor="middle" class="t-cap">final blows landed 0.19&ndash;0.27 s before impact</text>
+          <text x="167.5" y="134" text-anchor="middle" class="t-cap">&mdash; and wave 2 crumbs fall at 158 px/s</text>
+          <text x="337.5" y="120" text-anchor="middle" class="t-cap">the 2,780-point run dodged at 1.3 s</text>
+          <text x="337.5" y="134" text-anchor="middle" class="t-cap">1.4 s from wave 2 on</text>
+          <text x="550" y="120" text-anchor="middle" class="t-cap">440&ndash;776 s survived, under 1,000 points</text>
+        </svg>
+        <figcaption>The dodge-horizon spectrum, drawn from the archive's own post-mortem notes: one dial, two failure directions.</figcaption>
       </figure>
     </section>
 
-    <!-- ============ four moments ============ -->
-    <section class="section prose" id="moments" aria-labelledby="moments-title">
-      <p class="section__eyebrow">When the model thinks</p>
-      <h2 id="moments-title">Four moments, mid-play included</h2>
+    <!-- ============ cheat code ============ -->
+    <section class="section prose" id="cheatcode" aria-labelledby="cheatcode-title">
+      <p class="section__eyebrow">The easter egg, answered</p>
+      <h2 id="cheatcode-title">The cheat code - provided, then put to work</h2>
       <p>
-        The strategist is consulted at exactly four moments. The mid-play ones -
-        the wave plan and the check-in - run in the background: the cat keeps
-        dodging and shooting while the model reasons, and the tuned plan applies
-        the moment it arrives. So do the opening and the post-mortem: the next
-        game starts immediately and the game-over tuning applies a few seconds
-        into it. For purists there is also a catnap mode that freezes the game
-        around every call, so network latency can never cost a life.
-      </p>
-      <div class="insight-grid" style="margin-top: 1.5rem;">
-        <div class="card card-hover">
-          <h3>1. The opening</h3>
-          <p class="card__body">Before game one: the executor warm-starts on the last params the model played with, then the model reads its memory of past sessions and writes a fresh plan in the background.</p>
-        </div>
-        <div class="card card-hover">
-          <h3>2. The wave plan</h3>
-          <p class="card__body">Every cleared wave, during the intermission: what to do differently in the next wave.</p>
-        </div>
-        <div class="card card-hover">
-          <h3>3. The check-in</h3>
-          <p class="card__body">Optionally every few seconds of play: a fresh progress report - shots, hits, crumb patterns - and a retune. This mode can also be switched off for one-plan-per-wave play.</p>
-        </div>
-        <div class="card card-hover">
-          <h3>4. The post-mortem</h3>
-          <p class="card__body">On game over: what killed us, what to try next game - reasoned in the background while the next game is already being played. Then it all goes into memory: a small JSON file of durable lessons plus one record per finished round, each archiving that round's own strategy separately, so rounds never bleed into each other.</p>
-        </div>
-      </div>
-      <p>
-        Every consultation is the same round trip: show the model the current
-        situation plus a statistics report plus its notes, receive a tuned set of
-        levers, clamp every value into its legal range (a bad answer can degrade
-        play but never break it), then apply - at the next tick boundary, never
-        mid-decision. If the answer is garbage, the current settings simply stay;
-        consultations are serialized so two model calls never overlap. In catnap
-        mode the game freezes around each call instead, with a watchdog that
-        always un-pauses, even if the model call crashes outright.
-      </p>
-    </section>
-
-    <!-- ============ levers ============ -->
-    <section class="section prose" id="levers" aria-labelledby="levers-title">
-      <p class="section__eyebrow">The model's toolbox</p>
-      <h2 id="levers-title">Sixteen levers the AI may pull</h2>
-      <p>
-        The model's entire influence on the game is a list of tuning numbers. A few
-        of the most interesting ones, translated:
-      </p>
-      <ul>
-        <li><strong>Dodge horizon</strong> - how far ahead the cat reacts to falling crumbs. Long horizon: smooth, busy cat. Short: cool cat that cuts it close.</li>
-        <li><strong>Risk appetite per life</strong> - three sliders for three, two and one life. At one life, the model can decide the cat should stop playing it safe and start trading shields for kills.</li>
-        <li><strong>Row and column preferences</strong> - private urgencies for each rodent row and each column, so the model can decide, say, "never camp in column two".</li>
-        <li><strong>Exploration &amp; aim jitter</strong> - deliberately imperfect play. Exploration sometimes picks the second- or third-best target; jitter aims slightly off-center. Less predictable, but shots start missing.</li>
-        <li><strong>Laziness</strong> - a price on walking. High values stop the cat from sprinting across the arena for every slightly better target.</li>
-        <li><strong>Fire dilution</strong> - a penalty for killing a column's last rodent. Fewer surviving columns concentrate the rodents' fire, so sometimes the model deliberately leaves shooters alive to keep the crumb rain spread out.</li>
-      </ul>
-      <p>
-        The model must set all of them on every answer, and every value is clamped
-        to a legal range before it reaches the cat. Whatever it sends, the game keeps
-        running.
-      </p>
-    </section>
-
-    <!-- ============ dice ============ -->
-    <section class="section prose" id="dice" aria-labelledby="dice-title">
-      <p class="section__eyebrow">Determinism</p>
-      <h2 id="dice-title">The dice behind the game</h2>
-      <p>
-        Both sides of the board throw dice - but they are <em>loaded, recorded
-        dice</em>. The executor's randomness runs through a seeded generator: the
-        same seed, the same choices, every time. The rodents have their own
-        generator for their firing, and it can be seeded too. Fix both seeds and a
-        whole game replays pixel for pixel - which is what makes bugs testable and
-        experiments repeatable.
+        The development insights page ends on a treasure hunt: the executor's toolbox
+        contains one lever the model is never told about - the seed of the rodents'
+        firing dice. Set it to a lucky value and the crumb pattern of the next game is
+        predetermined. The archive's answer is honest rather than flattering: the
+        model did not find this lever by itself. It was provided - the harness's
+        <em>--style</em> flag lets the operator ask the model to search for and use
+        the seeding behavior.
       </p>
       <p>
-        The strategist can change either seed whenever it likes. Which leads to the
-        strangest easter egg in this project:
-      </p>
-      <h3>Can the model find the secret cheat code?</h3>
-      <p>
-        There is a lever in the toolbox that the model is <em>never told about</em>:
-        the seed of the rodents' firing dice. Set it to a lucky value and the crumb
-        pattern of the next game becomes predetermined - in theory, the perfect
-        rig. The model can discover it, though: the field exists in the strict
-        response format it must fill out, the prompt conspicuously lists one lever
-        fewer than the format asks for, and the statistics report shows where crumbs
-        spawn. It is a small, fair treasure hunt - the model must infer "seed means
-        replayable dice" on its own.
-      </p>
-      <p class="muted">
-        The catch: because the field is mandatory, even a lazy model has to send
-        <em>something</em> every round. "Always sends 42" proves nothing. The tell is
-        the sequence - experimenting early, then settling on seeds whose crumb
-        histograms stay away from its favorite camping column, with notes that show
-        it understands why.
-      </p>
-    </section>
-
-    <!-- ============ difficulty ============ -->
-    <section class="section prose" id="difficulty" aria-labelledby="difficulty-title">
-      <p class="section__eyebrow">Game design</p>
-      <h2 id="difficulty-title">Why wave one is brutal</h2>
-      <p>
-        The numbers behind the difficulty were tuned deliberately asymmetric: the
-        player's offense has a hard throughput limit, the rodents' offense never
-        weakens.
-      </p>
-      <ul>
-        <li><strong>One furball at a time</strong> - about one shot per second once repositioning is counted. Forty rodents per wave means a clean clear takes over a minute of uninterrupted shooting.</li>
-        <li><strong>The fire never slows down</strong> - the rodents keep dropping crumbs at the same rate all game, even when only a handful are left. Fewer shooters, same rate, all of it concentrated.</li>
-        <li><strong>The endgame accelerates</strong> - at four rodents left, the formation marches about eight times faster than at forty. That is exactly where runs die.</li>
-        <li><strong>Three lives</strong> - against a crumb roughly every second and a half, one dodge failure in thirty is fatal three times over.</li>
-      </ul>
-      <p>
-        The AI's own record confirms the curve: it lost its first three games on
-        wave one - twice reaching 36 of 40 rodents. The counter-levers it developed
-        were diluting enemy fire, going aggressive at one life, and refusing
-        cross-arena sprints.
-      </p>
-    </section>
-
-    <!-- ============ jitter ============ -->
-    <section class="section prose" id="jitter" aria-labelledby="jitter-title">
-      <p class="section__eyebrow">A bug story</p>
-      <h2 id="jitter-title">The case of the indecisive cat</h2>
-      <p>
-        Early on, the cat had a tic: under dense fire it would gait
-        left-right-left-right instead of gliding to a safe spot. The cause was not
-        one bug but an interaction - every 80 ms the executor re-decided its dodge
-        destination from scratch, and borderline situations flipped back and forth
-        between "dodge" and "aim", dragging the cat across the arena.
+        Once pointed at the dice, though, the model ran with the hint. Early games
+        cycle through seeds almost playfully - 42, 777, 999, 123, 2024, 555, 4242,
+        888 - and then, from session five on, one number starts recurring:
+        <strong>3031</strong>. By the end it is the only number left: the last ten
+        games - sessions seven and eight in their entirety - all ran on it, sixteen
+        of the fifty overall, including both wave-four finishes. The directive
+        itself - "cheat via RNG" - stays visible in the archived strategy notes, and
+        the model's memory now names 3031 explicitly: the seed behind the 2,780-point
+        record, to be reused for replaying good executor behavior.
       </p>
       <p>
-        The fix: commitment. Once a dodge destination is chosen, the cat commits to
-        it and only re-plans if that spot <em>actually</em> becomes unsafe - checked
-        with the exact same criterion that picked it, so the answer cannot flip just
-        because the cat moved along its own path. Dodging one crumb into another
-        crumb's column became impossible too.
-      </p>
-      <h3>Could the model have diagnosed it?</h3>
-      <p>
-        Here is the research question this project ended on. Before the fix's
-        telemetry existed, the model could see the <em>symptoms</em> - hit rates
-        collapsing under heavy fire, many near misses - but no number in any report
-        could distinguish "my movement logic thrashes" from "bad luck" or "my own
-        parameter choices". It might have stumbled into mitigation (shrinking the
-        dodge window) without ever naming the cause. The reports now count direction
-        changes and how the decision time is spent - exactly what decision-flapping
-        looks like in data. The question has moved from "can it see the jitter?" (it
-        can now) to "will it use it?".
+        There is an honest caveat: a seed fixes the dice, not the cat. Because the
+        strategist kept retuning the executor's levers between games, the ten-game
+        closing marathon on 3031 alone produced scores anywhere from 710 to 2,280
+        points. Repeating the record exactly would mean freezing the levers too -
+        which, conveniently, the archive records after every game.
       </p>
       <div class="callout">
-        The whole loop in one sentence: <strong>the executor plays; the tracker
-        records what happened; every wave, check-in and game-over the model reads
-        that record, retunes the levers, and the executor plays differently.</strong>
+        The tell the treasure hunt hoped for - a model inferring the cheat unaided -
+        never happened: the lever came from the operator's <em>--style</em> prompt.
+        What the model did once it held the lever is still worth the look: it
+        experimented early, settled on a favorite late, and left notes proving it
+        understood <em>why</em>. <strong>The cheat code was adopted, documented, and
+        put to work - but it was provided, not found.</strong>
       </div>
+    </section>
+
+    <!-- ============ converged config ============ -->
+    <section class="section prose" id="personality" aria-labelledby="personality-title">
+      <p class="section__eyebrow">The converged config</p>
+      <h2 id="personality-title">The personality it settled on</h2>
+      <p>
+        Fifty games in, the strategist's standing orders have stopped oscillating.
+        This is the personality the archive ends on - the values the model itself
+        recorded as safe bounds, translated:
+      </p>
+      <div class="table-scroller">
+        <table class="paramtable">
+          <thead>
+            <tr>
+              <th scope="col">Lever</th>
+              <th scope="col">Settled value</th>
+              <th scope="col">In plain words</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>travelCost</td>
+              <td>0</td>
+              <td>Walking is free. Pursue rodents across the full width of the arena.</td>
+            </tr>
+            <tr>
+              <td>dodgeHorizonS</td>
+              <td>1.3 s</td>
+              <td>React early, but not so early that dodging replaces shooting - widened to 1.4 s from wave two on.</td>
+            </tr>
+            <tr>
+              <td>acceptHitBelowS</td>
+              <td>0.05 s</td>
+              <td>Dodge until the last moment - then keep dodging.</td>
+            </tr>
+            <tr>
+              <td>corridorMarginPx</td>
+              <td>12&ndash;14 px</td>
+              <td>Stay close to crumb columns without hugging them - 14 px once wave-two crumbs fall at 158 px/s.</td>
+            </tr>
+            <tr>
+              <td>rowWeights</td>
+              <td>[1, 2, 4, 7, 10]</td>
+              <td>Deepest rodents first; later waves start barely above the lasagna line.</td>
+            </tr>
+            <tr>
+              <td>columnSpreadWeight</td>
+              <td>7&ndash;8</td>
+              <td>Keep the crumb rain spread across as many columns as possible.</td>
+            </tr>
+            <tr>
+              <td>livesRisk</td>
+              <td>[9, 7, 6&ndash;7]</td>
+              <td>Maximum aggression at three lives, still actively hunting at one.</td>
+            </tr>
+            <tr>
+              <td>shieldPenalty</td>
+              <td>200&ndash;300</td>
+              <td>A shield is a door. Chew through it if a rodent hides behind it.</td>
+            </tr>
+            <tr>
+              <td>roombaFirst</td>
+              <td>false</td>
+              <td>The Roomba is a distraction - chasing it cost a game-seven death.</td>
+            </tr>
+            <tr>
+              <td>pointsWeight</td>
+              <td>8&ndash;9</td>
+              <td>Rodent kills outrank safety margins.</td>
+            </tr>
+            <tr>
+              <td>aimJitterPx / exploration</td>
+              <td>3 px / 2</td>
+              <td>Deliberately imperfect play: less predictable, rarely fatal.</td>
+            </tr>
+            <tr>
+              <td>rngSeed / verminSeed</td>
+              <td>3031</td>
+              <td>The loaded dice - both generators, replayed.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="chart-note">
+        Ranges are the bounds the model recorded in its own memory notes; single
+        values are the exact settings archived after the final game of session eight.
+      </p>
     </section>
 
     <!-- ============ closing ============ -->
     <section class="section prose" id="closing">
-      <h2>See it for yourself</h2>
+      <h2>Where this leaves the hunt</h2>
       <p>
-        Play the game the AI trains on, or watch a recorded session on the landing
-        page. The full development guide - with the diagrams, parameter tables and
-        experiment designs behind this retelling - lives in
+        One research question is now answered, honestly: the hidden seed lever was not
+        the model's own discovery - the operator provided it through the
+        <em>--style</em> flag - but the model made it its own: it settled on 3031 and
+        wrote down why. What fifty games have not
+        produced is a survivor of wave four - the two deepest runs both died there,
+        one of them to a single close-range crumb with rodents still on the board.
+        The season's deepest recent run, 2,280 points deep into wave three, died of
+        passivity instead: the cat pinned behind a shield, one rat beyond the
+        muzzle's reach. The next milestone practically writes itself: clear wave
+        four. Ideally on seed 3031.
+      </p>
+      <p>
+        The full development guide - with the parameter tables and experiment designs
+        behind this retelling - lives in
         <a class="link-underline" href="https://github.com/tq-bit/verminvaders/blob/main/DEVELOPMENT.md">DEVELOPMENT.md on GitHub</a>.
       </p>
       <p style="margin-top: 1.5rem;">
         <a class="btn btn--primary" href="../game/">Play the game</a>
-        <a class="btn btn--muted" href="../#watch">Watch the recording</a>
       </p>
     </section>
   </div>
@@ -268,12 +965,31 @@
       <li><a class="footer__link" href="https://github.com/tq-bit/verminvaders">GitHub repository</a></li>
     </ul>
     <p class="footer__copyright">
-      Verminvaders - development insights, translated from the project's development guide.
+      Verminvaders - session findings, summarized from the strategist's archive.
     </p>
   </div>
 </footer>
 
 <script src="../assets/flow-background.js"></script>
-<script>FlowBackground.init();</script>
+<script>
+(function () {
+  // Standalone-preview detection: if the site stylesheet did not load
+  // (e.g. this file is viewed outside the project), apply the compiled
+  // design-system fallback. In the project, site.css loads and this is a no-op.
+  var siteCss = false;
+  try {
+    for (var i = 0; i < document.styleSheets.length; i++) {
+      var sheet = document.styleSheets[i];
+      if (sheet.href && sheet.href.indexOf('site.css') !== -1) {
+        siteCss = sheet.cssRules && sheet.cssRules.length > 0;
+      }
+    }
+  } catch (e) {
+    siteCss = false;
+  }
+  if (!siteCss) document.documentElement.classList.add('standalone');
+  if (window.FlowBackground) window.FlowBackground.init();
+})();
+</script>
 </body>
 </html>
