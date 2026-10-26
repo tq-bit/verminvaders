@@ -149,6 +149,7 @@ describe("parseStrategyResponse", () => {
       aimJitterPx: -1,
       travelCost: 42,
       rngSeed: "bogus",
+      verminSeed: 42.7,
     });
     assert.deepEqual(p.rowWeights, [3, 10, 0, 1, 1]);
     assert.deepEqual(p.colAvoid, [0, 0, 0, 0, 0, 0, 0, 0]);
@@ -157,6 +158,9 @@ describe("parseStrategyResponse", () => {
     assert.equal(p.aimJitterPx, 0);
     assert.equal(p.travelCost, 10);
     assert.equal(p.rngSeed, 0);
+    assert.equal(p.verminSeed, 42, "vermin seed kept and truncated");
+    assert.equal(normalizeParams({ verminSeed: "nope" }).verminSeed, -1, "garbage seed = unseeded");
+    assert.equal(normalizeParams({ verminSeed: -9 }).verminSeed, -1, "negative seeds clamp to unseeded");
   });
 });
 
@@ -214,6 +218,21 @@ describe("StrategyController per-game summaries and limits", () => {
     assert.equal(saved.games[2].score, 500);
     assert.equal(saved.games[2].summary, "avoid the left wall, chew nothing");
     assert.deepEqual(saved.memory, { clean: true }); // cleaned memory persisted
+    await rm(tmpFile, { force: true });
+  });
+
+  it("post-mortem returns the params tuned for the next game", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new FakeClient();
+    fake.answer = JSON.stringify({
+      params: { verminSeed: 4242, dodgeHorizonS: 1.2 },
+      notes: "next game plan",
+      memory: {},
+    });
+    const ctrl = await newController(fake, 5, 3);
+    const params = await ctrl.postMortem(makeState({ score: 100 }), 1);
+    assert.equal(params?.verminSeed, 4242);
+    assert.equal(params?.dodgeHorizonS, 1.2);
     await rm(tmpFile, { force: true });
   });
 

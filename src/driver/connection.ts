@@ -88,4 +88,9 @@ export class Connection {
   async clearThinking(): Promise<void> {
     await this.page.evaluate(() => window.verminvaders?.clearThinking?.());
   }
+
+  // Seed the vermin (rodent) firing RNG in the game; -1 restores Math.random.
+  async setVerminSeed(seed: number): Promise<void> {
+    await this.page.evaluate((s) => window.verminvaders?.setVerminSeed?.(s), seed);
+  }
 }

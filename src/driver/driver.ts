@@ -4,6 +4,7 @@
 
 import type {
   Decision,
+  ExecutorParams,
   GameState,
   HarnessCallbacks,
   Policy,
@@ -134,6 +135,13 @@ export class Harness {
     }
   }
 
+  // Apply tuned params: the executor weights go to the policy, the vermin
+  // seed goes to the game itself (it steers the crumb schedule, not the cat).
+  private async applyParams(params: ExecutorParams): Promise<void> {
+    (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
+    await this.conn.setVerminSeed(params.verminSeed).catch(() => {});
+  }
+
   // Epoch boundary: pause the game, let Mistral reason about the finished
   // epoch, apply the tuned params, start a new epoch, resume.
   private async updateStrategy(s: GameState): Promise<void> {
@@ -143,9 +151,7 @@ export class Harness {
     try {
       const fresh = await this.conn.readState();
       const params = await this.strategy.epochUpdate(fresh);
-      if (params) {
-        (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
-      }
+      if (params) await this.applyParams(params);
       this.strategy.startEpoch(fresh);
       this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
     } finally {
@@ -166,9 +172,7 @@ export class Harness {
     try {
       const fresh = await this.conn.readState();
       const params = await this.strategy.wavePlan(fresh);
-      if (params) {
-        (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
-      }
+      if (params) await this.applyParams(params);
       this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
     } finally {
       // watchdog: a crash in the LLM path must never leave the game frozen
@@ -182,12 +186,13 @@ export class Harness {
   }
 
   private async handleRestart(s: GameState): Promise<void> {
-    // post-mortem: feed the game outcome into the model's memory
-    // (also on the last game of the session)
+    // post-mortem: feed the game outcome into the model's memory and apply
+    // the params it tuned for the next game (also on the last game)
     if (s.phase === "gameover" && this.strategy) {
       await this.conn.pause();
       try {
-        await this.strategy.postMortem(s, this.gamesStarted);
+        const params = await this.strategy.postMortem(s, this.gamesStarted);
+        if (params) await this.applyParams(params);
       } finally {
         await this.conn.resume().catch(() => {});
       }
@@ -203,9 +208,7 @@ export class Harness {
     if (this.gamesStarted === 0 && this.strategy) {
       this.log("asking Mistral for an opening strategy...");
       const params = await this.strategy.openingStrategy(s);
-      if (params) {
-        (this.policy as unknown as { setParams(p: unknown): void }).setParams(params);
-      }
+      if (params) await this.applyParams(params);
     }
     await this.conn.start();
     this.gamesStarted++;

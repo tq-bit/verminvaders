@@ -24,6 +24,7 @@ export const DEFAULT_EXECUTOR_PARAMS: ExecutorParams = {
   aimJitterPx: 0,
   travelCost: 0,
   rngSeed: 0,
+  verminSeed: -1,
 };
 
 export const DEFAULT_DODGE_PARAMS: DodgeParams = { horizonS: 1.6, acceptBelowS: 0.25 };

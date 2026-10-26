@@ -20,6 +20,21 @@
   const SX = 44, SY = 36; // rodent formation spacing
   const keys = {};
 
+  // ---------- vermin RNG (rodent fire) ----------
+  // Seeded via the bridge (setVerminSeed): a fixed seed replays the same
+  // crumb schedule and shooter picks every game. -1 = unseeded Math.random.
+  function mulberry32(seed) {
+    let a = (seed | 0) ^ 0x9e3779b9;
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  let verminSeed = -1, verminRng = Math.random;
+
   // qbit design system (dark theme) - canvas UI palette.
   // Mirrors the RGB-triplet tokens from style.css; sprites keep their own colors.
   const QBIT = {
@@ -120,6 +135,7 @@
     score = 0; wave = 1; lives = 3; state = "playing";
     // the strategy panel stays up: the last plan remains visible until the
     // next consultation overwrites it
+    if (verminSeed >= 0) verminRng = mulberry32(verminSeed); // fresh replay stream
     newWave();
   }
 
@@ -214,14 +230,14 @@
       if (roomba.x < -50 || roomba.x > W + 50) { roomba = null; roombaT = 9 + Math.random() * 8; }
     }
 
-    // rodent fire
+    // rodent fire (verminRng: seeded when the harness sets a vermin seed)
     fireT -= dt;
     if (fireT <= 0) {
-      fireT = Math.max(0.28, 1.15 - 0.07 * (wave - 1)) * (0.4 + 0.7 * Math.random());
+      fireT = Math.max(0.28, 1.15 - 0.07 * (wave - 1)) * (0.4 + 0.7 * verminRng());
       const alive = aliveRods();
       if (alive.length) {
         // shoot from the lowest rodent of a random column
-        const col = alive[Math.floor(Math.random() * alive.length)].col;
+        const col = alive[Math.floor(verminRng() * alive.length)].col;
         const colRods = alive.filter(function (r) { return r.col === col; }).sort(function (a, b) { return b.row - a.row; });
         const s = colRods[0];
         crumbs.push({ x: gx + s.col * SX + s.w / 2 - 5, y: gy + s.row * SY + s.h, w: 10, h: 10, vy: 130 + wave * 14, rot: 0 });
@@ -901,6 +917,16 @@
     },
     clearThinking: function () {
       return clearThinking();
+    },
+    // --- vermin RNG ---
+    setVerminSeed: function (n) {
+      n = Number(n);
+      if (isNaN(n) || Math.abs(n) > 2147483647) return false;
+      n = Math.trunc(n);
+      if (n === verminSeed) return true; // unchanged: stream keeps running
+      verminSeed = n;
+      verminRng = verminSeed >= 0 ? mulberry32(verminSeed) : Math.random;
+      return true;
     },
     // --- optional thinking pause ---
     pause: function () { paused = true; return true; },

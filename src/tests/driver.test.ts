@@ -8,8 +8,10 @@ import { makeState } from "./make-state.ts";
 
 // Fake connection: a stand-in for the Playwright-backed Connection.
 function fakeConn() {
+  const verminSeeds: number[] = [];
   return {
     latencyMs: 0,
+    verminSeeds,
     hasBridge: async () => true,
     readState: async () => makeState({ phase: "waveclear", wave: 2 }),
     apply: async () => ({ ok: true, shot: false }),
@@ -17,6 +19,9 @@ function fakeConn() {
     pause: async () => true,
     resume: async () => true,
     stopInputs: async () => {},
+    setVerminSeed: async (n: number) => {
+      verminSeeds.push(n);
+    },
   };
 }
 
@@ -105,5 +110,50 @@ describe("Harness wave planning", () => {
       makeState({ phase: "waveclear", wave: 2 }),
     );
     assert.ok(h.nextStrategyAt < Date.now(), "no strategist: clock is untouched");
+  });
+
+  it("forwards the tuned vermin seed to the game with the params", async () => {
+    const conn = fakeConn();
+    const strategy = {
+      tracker: { observe: () => {}, noteShot: () => {} },
+      wavePlan: async () => ({ ...DEFAULT_EXECUTOR_PARAMS, verminSeed: 4242 }),
+    };
+    const harness = new Harness(
+      conn as never,
+      new HeuristicPolicy(),
+      { event: () => {} } as never,
+      opts(),
+      {},
+      strategy as never,
+    );
+    const h = harness as unknown as { wavePlanPending: boolean };
+    h.wavePlanPending = true;
+    await (harness as unknown as { handleWavePlan(s: unknown): Promise<void> }).handleWavePlan(
+      makeState({ phase: "waveclear", wave: 2 }),
+    );
+    assert.deepEqual(conn.verminSeeds, [4242], "the vermin seed must reach the game");
+  });
+
+  it("applies the post-mortem params to the next game", async () => {
+    const conn = fakeConn();
+    const strategy = {
+      tracker: { observe: () => {}, noteShot: () => {} },
+      postMortem: async () => ({ ...DEFAULT_EXECUTOR_PARAMS, verminSeed: 777 }),
+      openingStrategy: async () => null,
+    };
+    const harness = new Harness(
+      conn as never,
+      new HeuristicPolicy(),
+      { event: () => {} } as never,
+      opts({ maxGames: 3 }),
+      {},
+      strategy as never,
+    );
+    const h = harness as unknown as { gamesStarted: number };
+    h.gamesStarted = 1; // one game played, one game over
+    await (harness as unknown as { handleRestart(s: unknown): Promise<void> }).handleRestart(
+      makeState({ phase: "gameover" }),
+    );
+    assert.deepEqual(conn.verminSeeds, [777], "post-mortem seed must reach the game");
   });
 });

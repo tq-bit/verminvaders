@@ -36,6 +36,8 @@ export function normalizeParams(raw: unknown): ExecutorParams {
     aimJitterPx: clamp(r.aimJitterPx, 0, 10, 0),
     travelCost: clamp(r.travelCost, 0, 10, 0),
     rngSeed: typeof r.rngSeed === "number" && Number.isFinite(r.rngSeed) ? r.rngSeed : 0,
+    // -1 = unseeded; anything else seeds the game's vermin firing RNG
+    verminSeed: Math.trunc(clamp(r.verminSeed, -1, 2147483647, -1)),
   };
 }
 

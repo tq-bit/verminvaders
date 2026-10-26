@@ -140,6 +140,7 @@ Two layers are adjustable:
    | `acceptHitBelowS` | 0.05–0.5 s | Stop dodging when impact is nearer than this. |
    | `corridorMarginPx` | 4–20 px | Safety margin kept from crumb columns. |
    | `columnSpreadWeight` | 0–10 | Penalty for killing a column's last rodent — keeps the enemy's random fire diluted across many columns (rods pick a uniformly random live rodent per shot, so fewer live columns means denser crumb streams). |
+   | `verminSeed` | -1–2147483647 | Seed for the rodents' firing RNG: `-1` = unseeded, any other value replays the same crumb schedule and shooter picks every game. Unlike the other params it steers the enemy, not the cat. The system prompt does not document this lever — the model is free to discover what it does (operator default via `VERMINVADERS_VERMIN_SEED`). |
 
    Defaults live in `src/policy/heuristic.ts` (`DEFAULT_EXECUTOR_PARAMS`).
 

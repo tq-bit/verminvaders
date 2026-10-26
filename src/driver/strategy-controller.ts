@@ -136,8 +136,9 @@ export class StrategyController {
 
   // Post-mortem after a game ends: the model writes a per-game strategy
   // summary, tunes for the next game, and cleans up its own memory
-  // (deduplication, redundancy removal).
-  async postMortem(s: GameState, gameNumber: number): Promise<void> {
+  // (deduplication, redundancy removal). Returns the tuned params so the
+  // driver can apply them — including the next game's vermin seed.
+  async postMortem(s: GameState, gameNumber: number): Promise<ExecutorParams | null> {
     const outcome =
       s.lives <= 0 ? "ran out of lives" : "a rodent reached the lasagna line";
     const record: GameRecord = {
@@ -169,6 +170,7 @@ export class StrategyController {
       record.finalParams = this.lastParams ?? undefined;
     }
     await this.save();
+    return this.lastParams;
   }
 
   // The most recent finished games (summaries + stats) for prompt context.

@@ -195,6 +195,8 @@ async function main(): Promise<void> {
 
   try {
     await harness.connect();
+    // operator-set vermin seed (-1 = unseeded): the model may retune it later
+    await conn.setVerminSeed(intEnv("VERMINVADERS_VERMIN_SEED", -1)).catch(() => {});
     console.log(c.blue(`[harness] playing ${path.basename(args.gamePath)} at ${url}`));
     console.log(
       c.blue(

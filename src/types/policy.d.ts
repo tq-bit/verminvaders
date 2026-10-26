@@ -42,8 +42,12 @@ export interface ExecutorParams {
    *  10 px of glide distance to the aim point; 0 = distance is ignored */
   travelCost: number;
   /** seed for the executor RNG; identical seeds replay identical executor
-   *  decisions — games still vary, the enemy fire is unseeded */
+   *  decisions — the enemy fire follows its own RNG (see verminSeed) */
   rngSeed: number;
+  /** seed for the vermin (rodent) firing RNG: -1 = unseeded (Math.random),
+   *  any other value replays the same crumb schedule and shooter picks
+   *  every game; applied to the game, not the executor */
+  verminSeed: number;
 }
 
 export interface ShotPlan {

@@ -41,7 +41,8 @@
         "exploration": { "type": "number", "description": "0..10, probability weight for picking 2nd/3rd-best target" },
         "aimJitterPx": { "type": "number", "description": "0..10, seeded random aim error in px" },
         "travelCost": { "type": "number", "description": "0..10, laziness: each point penalizes target scores by 1 per 10 px of glide distance; 0 = distance ignored" },
-        "rngSeed": { "type": "number", "description": "seed for the executor RNG; a fixed seed replays the executor's choices identically (games still vary, the enemy fire is unseeded)" }
+        "rngSeed": { "type": "number", "description": "seed for the executor RNG; a fixed seed replays the executor's choices identically" },
+        "verminSeed": { "type": "number", "description": "seed for the vermin firing RNG" }
       },
       "required": [
         "roombaFirst",
@@ -59,7 +60,8 @@
         "exploration",
         "aimJitterPx",
         "travelCost",
-        "rngSeed"
+        "rngSeed",
+        "verminSeed"
       ],
       "additionalProperties": false
     },

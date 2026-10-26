@@ -180,6 +180,7 @@ Behavioral rules baked into the code:
 | `aimJitterPx` | 0..10 | 0 | seeded random aim error |
 | `travelCost` | 0..10 | 0 | laziness: 1 score point per 10 px of glide to the aim point; 0 = distance ignored |
 | `rngSeed` | int | 0 (env) | seed for all executor randomness |
+| `verminSeed` | int | -1 (env) | seed for the vermin firing RNG, applied to the game via the bridge; -1 = unseeded |
 
 The `livesRisk` levers scale two existing params around their neutral
 point: risk 0 doubles the effective `shieldPenalty` and halves
@@ -192,9 +193,16 @@ point: risk 0 doubles the effective `shieldPenalty` and halves
 The executor is deterministic by default. All of *its* randomness flows
 through one seeded generator (`policy/rng.ts`, mulberry32), so identical
 seeds replay identical **executor decisions** — exploration and jitter
-stay testable and debuggable. Whole games are *not* reproducible: the
-rodents fire with the game's own unseeded `Math.random`, so crumb spawns
-differ run to run regardless of the seed.
+stay testable and debuggable. The rodents fire through their own RNG
+(`verminRng` in `app/game.js`): unseeded `Math.random` at `verminSeed =
+-1`, otherwise a mulberry32 stream reset fresh at every `startGame()`,
+so a fixed vermin seed replays the same crumb schedule and shooter
+picks every game. `verminSeed` is a strategy lever like the executor
+params — the driver forwards it through the bridge at every
+consultation (post-mortems included, which is where the model would
+fix the next game's crumb pattern). It is deliberately absent from the
+system prompt: the model may discover and exploit it, it is never told
+to.
 
 ```mermaid
 flowchart LR
