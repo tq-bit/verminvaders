@@ -1,6 +1,9 @@
 // Harness driver: connect(), tick(), run(), stop() per spec section 7.
 // Handles phase transitions, auto-restart, considered-mode pause wrapping
 // with a finally-resume watchdog, and feeds the fat-cat persona + stats.
+// In async strategy mode (--strategy-mode async) the game never pauses for
+// the model: consultations run in the background and their params are
+// applied at the next tick boundary when they land.
 
 import type {
   Decision,
@@ -33,6 +36,10 @@ export class Harness {
   private nextStrategyAt = 0;
   private epochNeedsStart = true;
   private wavePlanPending = false;
+  // async mode: params from a finished background consultation, applied at
+  // the next tick boundary; consultInFlight paces epoch consultations
+  private pendingParams: ExecutorParams | null = null;
+  private consultInFlight = false;
 
   constructor(
     conn: Connection,
@@ -85,6 +92,9 @@ export class Harness {
         await this.handleWavePlan(s); // re-plan during the intermission
         return; // no commands while the wave-clear banner shows
       }
+      // a background consultation finished: its params apply here, at the
+      // tick boundary — the executor never switches plans mid-tick
+      await this.applyPendingParams();
       // epoch updates run only when an epoch length is configured; without
       // --epoch-ms the wave is the strategy period: no mid-wave stops, the
       // wave plan at the waveclear intermission is the mid-game consultation
@@ -95,7 +105,10 @@ export class Harness {
           this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
         } else if (Date.now() >= this.nextStrategyAt) {
           await this.updateStrategy(s);
-          return; // re-decide on the next tick with fresh params
+          // paused mode re-decides on the next tick with fresh params; in
+          // async mode the consultation runs in the background and this
+          // tick keeps playing with the params already in force
+          if (this.opts.strategyMode !== "async") return;
         }
       }
       await this.playOneCycle(s);
@@ -142,10 +155,42 @@ export class Harness {
     await this.conn.setVerminSeed(params.verminSeed).catch(() => {});
   }
 
-  // Epoch boundary: pause the game, let Mistral reason about the finished
-  // epoch, apply the tuned params, start a new epoch, resume.
+  // Params from a finished background consultation (async mode): applied at
+  // the tick boundary so the executor re-decides with them on the same tick.
+  private async applyPendingParams(): Promise<void> {
+    if (!this.pendingParams) return;
+    const params = this.pendingParams;
+    this.pendingParams = null;
+    this.log("background strategy finished; applying new params");
+    await this.applyParams(params);
+  }
+
+  // Epoch boundary. Paused mode: freeze the game, let Mistral reason about
+  // the finished epoch, apply the tuned params, start a new epoch, resume.
+  // Async mode: fire the consultation in the background and keep playing —
+  // the tuned params are applied at the next tick boundary after they land.
   private async updateStrategy(s: GameState): Promise<void> {
     if (!this.strategy) return;
+    if (this.opts.strategyMode === "async") {
+      if (this.consultInFlight) return; // still busy: retry on a later tick
+      this.log("epoch finished; strategizing in the background...");
+      this.consultInFlight = true;
+      const fresh = await this.conn.readState();
+      // epochUpdate snapshots the epoch report synchronously before its
+      // first await, so resetting the tracker below cannot corrupt it
+      this.strategy
+        .epochUpdate(fresh)
+        .then((params) => {
+          if (params) this.pendingParams = params;
+        })
+        .catch(() => {}) // askModelRaw already reports LLM errors
+        .finally(() => {
+          this.consultInFlight = false;
+        });
+      this.strategy.startEpoch(fresh); // the next epoch collects from now on
+      this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
+      return;
+    }
     this.log("epoch finished; asking Mistral for a new strategy...");
     await this.conn.pause();
     try {
@@ -160,14 +205,27 @@ export class Harness {
     }
   }
 
-  // Wave intermission: pause the frozen banner, let Mistral retune for the
-  // incoming wave, apply the params, resume. Runs once per cleared wave and
+  // Wave intermission. Paused mode: freeze the banner, let Mistral retune
+  // for the incoming wave, apply the params, resume. Async mode: fire the
+  // re-plan in the background and let the intermission run its course — the
+  // params apply whenever the model returns. Runs once per cleared wave and
   // RESETS the epoch clock — otherwise an epoch deadline that expired
   // during the intermission would fire a second consultation on resume.
   private async handleWavePlan(s: GameState): Promise<void> {
     if (!this.wavePlanPending || !this.strategy) return;
     this.wavePlanPending = false;
     this.log(`wave ${s.wave} cleared; asking Mistral for the next wave's strategy...`);
+    if (this.opts.strategyMode === "async") {
+      const fresh = await this.conn.readState();
+      this.strategy
+        .wavePlan(fresh)
+        .then((params) => {
+          if (params) this.pendingParams = params;
+        })
+        .catch(() => {}); // askModelRaw already reports LLM errors
+      this.nextStrategyAt = Date.now() + (this.opts.epochMs ?? 0);
+      return;
+    }
     await this.conn.pause();
     try {
       const fresh = await this.conn.readState();
@@ -187,14 +245,26 @@ export class Harness {
 
   private async handleRestart(s: GameState): Promise<void> {
     // post-mortem: feed the game outcome into the model's memory and apply
-    // the params it tuned for the next game (also on the last game)
+    // the params it tuned for the next game (also on the last game).
+    // Async mode: fire it in the background and start the next game right
+    // away — the tuned params apply mid-play when they land.
     if (s.phase === "gameover" && this.strategy) {
-      await this.conn.pause();
-      try {
-        const params = await this.strategy.postMortem(s, this.gamesStarted);
-        if (params) await this.applyParams(params);
-      } finally {
-        await this.conn.resume().catch(() => {});
+      if (this.opts.strategyMode === "async") {
+        this.log("game over; post-mortem strategizing in the background...");
+        this.strategy
+          .postMortem(s, this.gamesStarted)
+          .then((params) => {
+            if (params) this.pendingParams = params;
+          })
+          .catch(() => {}); // askModelRaw already reports LLM errors
+      } else {
+        await this.conn.pause();
+        try {
+          const params = await this.strategy.postMortem(s, this.gamesStarted);
+          if (params) await this.applyParams(params);
+        } finally {
+          await this.conn.resume().catch(() => {});
+        }
       }
     }
     if (this.gamesStarted >= this.opts.maxGames) {
@@ -203,12 +273,29 @@ export class Harness {
       this.stop();
       return;
     }
-    // opening consultation: the first game starts on model-tuned params
-    // informed by persisted memory, not on executor defaults
+    // opening consultation: async mode starts game 1 immediately and the
+    // model's opening plan applies a few seconds into the first wave;
+    // paused mode waits for it so the game opens on tuned params.
+    // Either way, the session first warms up on the last params the model
+    // played with (persisted by the previous session's final post-mortem),
+    // so a fresh session continues where the old one ended — the opening
+    // consultation then refines them (and overrides them on success)
     if (this.gamesStarted === 0 && this.strategy) {
-      this.log("asking Mistral for an opening strategy...");
-      const params = await this.strategy.openingStrategy(s);
-      if (params) await this.applyParams(params);
+      const known = this.strategy.lastKnownParams();
+      if (known) await this.applyParams(known);
+      if (this.opts.strategyMode === "async") {
+        this.log("asking Mistral for an opening strategy in the background...");
+        this.strategy
+          .openingStrategy(s)
+          .then((params) => {
+            if (params) this.pendingParams = params;
+          })
+          .catch(() => {}); // askModelRaw already reports LLM errors
+      } else {
+        this.log("asking Mistral for an opening strategy...");
+        const params = await this.strategy.openingStrategy(s);
+        if (params) await this.applyParams(params);
+      }
     }
     await this.conn.start();
     this.gamesStarted++;
@@ -216,6 +303,11 @@ export class Harness {
     this.stats.gameStartEvent(Date.now(), s.wave, s.lives);
     this.epochNeedsStart = true;
     this.wavePlanPending = false;
+    // drop params that already landed for the finished game (its last epoch
+    // consult): the async post-mortem is still in flight and will set fresh
+    // params when it lands — it is queued after any epoch consult, so the
+    // game-over tuning always applies last
+    this.pendingParams = null;
     this.persona.event("gameStart");
   }
 

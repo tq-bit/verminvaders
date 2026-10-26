@@ -6,7 +6,7 @@ The goal is to defend earth (= a piece of lasagna) from invaders (= hungry mice 
 
 > Note: No cats or rodents were hurt during this game's development
 
-Since I had no prior experience developing games nor developing AI harnesses, Mistral Vibe did the major development part. My contribution was mainly the idea, name, some details about the figures and design. I did learn a lot about harness development though (and how close we are to AI furtherly developing itself).
+Since I had no prior experience developing games nor developing AI harnesses, Mistral Vibe did the major development part. My contribution was mainly the idea, name, some details about the figures and design. I did learn a lot about harness and game development though, and had a lot of fun making decisions how the cat and rodents move and behave.
 
 If you're curious about the game yourself, you can find it under **https://tq-bit.github.io/verminvaders/**
 
@@ -14,7 +14,7 @@ If you're curious about the game yourself, you can find it under **https://tq-bi
 
 The harness uses Playwright on a Chromium Server. It talks to the game's Harness Bridge (`window.verminvaders`) to read the game's current state and feed it to the model, which then strategizes what to do next. Each strategy is fed back into the harness and the next round (= game epoch) starts. This loop goes on until all rodents are eliminiated or the cat is overwhelmed.
 
-> To make it fair-play, the defending feline takes a catnap during strategizing.
+> By default the game keeps running while the model strategizes — the harness plays on with its current parameters and applies the model's new plan the moment it returns. If you prefer to play the game with a cat-nap between strategies, pass `--strategy-mode paused` and the game freezes during every consultation.
 
 The harness has a simple memory function built-in to strategize and learn from previous mistakes. Turns out it is able to play the game much better than I used to be.
 
@@ -26,18 +26,26 @@ The model's own words also appear in the game page, in two glass panels right of
 serve game -> launch Chromium -> connect to window.verminvaders (10 s timeout)
   -> start() on title
   -> executor ticks every 80 ms (aim, dodge, shoot, reposition)
-  -> every epoch: pause -> stream state + report + memory to Mistral
+  -> every epoch: snapshot state + report + memory -> Mistral reasons
+       in the background (streamed live into the game's strategy panel)
        (report includes crumb firing statistics: crumbs fired,
         per-column spawn histogram, near misses)
-       -> model reasons (streamed live into the game's strategy panel)
-       -> returns params + memory -> apply params, persist memory, resume
-  -> game over: post-mortem into memory -> next game (up to --games)
+       -> params + memory arrive -> apply params at the next tick,
+          persist memory, start the next epoch
+  -> game over: next game starts immediately (up to --games), the
+       post-mortem runs in the background and its params apply when they land
   -> session summary (games, best score, shots, hits, duration)
 ```
 
-The game is only ever paused while the model thinks; a `finally` watchdog guarantees it
-resumes even if the model call, the parser, or the process shutdown path fails. Ctrl+C
-stops the harness, resumes the game, and closes the browser cleanly.
+The game never stops for the model: while Mistral reasons the executor keeps
+playing with its current parameters, and the tuned params are applied at the
+next tick boundary after the answer lands. A fresh session also warm-starts:
+the first game opens on the last params the model played with (persisted in
+memory), and the opening consultation retunes them in the background.
+(With `--strategy-mode paused` the game instead freezes around every
+consultation; a `finally` watchdog guarantees it resumes even if the model
+call, the parser, or the process shutdown path fails.) Ctrl+C stops the
+harness, resumes the game, and closes the browser cleanly.
 
 ## Run the harness
 
@@ -90,6 +98,7 @@ You can tweak how the AI plays the game. `--headed` allows you to watch the mode
 | `--games <n>` | `3` | Auto-restart up to n games per session. |
 | `--model <name>` | `mistral-large-4` | Which Mistral model is the strategic brain. |
 | `--epoch-ms <n>` | (none) | Strategy epoch length: the model is consulted mid-play every n ms. Omit it for per-wave strategy — no mid-wave stops, the model retunes once per cleared wave (plus opening/post-mortem). |
+| `--strategy-mode async\|paused` | `async` | `async` (default): the game keeps playing while Mistral strategizes in the background; new params apply the moment the model returns. `paused`: the classic fair-play catnap — the game freezes around every consultation. |
 | `--style '<directive>'` | (none) | Operator directive injected into the model's prompt — see below. |
 | `--memory <path>` | `memory/mistral-strategy.json` | Where the model's persistent memory lives. |
 | `--persona <path>` | `src/persona/lines.json` | Custom fat-cat lines file. |
@@ -106,6 +115,9 @@ Examples:
 ```bash
 # fast epochs for lively terminal output
 node main.ts --epoch-ms 5000
+
+# the classic catnap: the game freezes while Mistral thinks
+node main.ts --epoch-ms 5000 --strategy-mode paused
 
 # three games, survival first
 node main.ts --games 3 --style "careful: survival over score, wide margins"

@@ -20,25 +20,38 @@ game. The only channel between them is the parameter object applied via
 
 ## 1. The strategy process
 
-Mistral is consulted at four moments. The driver pauses the game for each
-call (except the opening, which happens on the title screen), so LLM
-latency can never cost a life.
+Mistral is consulted at four moments. With `--strategy-mode async` (the
+default) the mid-play consultations — epoch updates and wave plans — run in
+the background: the game keeps playing while the model reasons, and the tuned
+params are applied at the next tick boundary after the answer lands, so LLM
+latency never costs play time. The same holds for the session opening and
+the post-mortem: they also run in the background — the first game starts
+right away (warm-started on the last params the model played with, read
+from the newest game record's `finalParams` via
+`StrategyController.lastKnownParams()`) and the post-mortem of a finished
+game is fired at the moment of game over, while the next game is already
+being played; their tuned params apply at the next tick boundary after
+they land. With `--strategy-mode paused` the
+driver instead freezes the game around every consultation, so LLM latency can
+never cost a life.
 
 | Moment | Trigger | Driver method | Controller method |
 |---|---|---|---|
 | **Opening** | title screen, before game 1 of a session | `handleRestart` | `openingStrategy(s)` |
 | **Wave plan** | `playing → waveclear` transition, during the intermission banner | `handleWavePlan` | `wavePlan(s)` |
-| **Epoch update** | every `--epoch-ms` of play — **optional**; omitted = per-wave strategy (no mid-wave stops, the wave plan is the only mid-game consultation) | `updateStrategy` | `epochUpdate(s)` |
+| **Epoch update** | every `--epoch-ms` of play — **optional**; omitted = per-wave strategy (no mid-wave consults, the wave plan is the only mid-game consultation) | `updateStrategy` | `epochUpdate(s)` |
 | **Post-mortem** | `gameover` screen, once per finished game | `handleRestart` | `postMortem(s, n)` |
 
 The moments never double-fire at a wave boundary: the wave plan **resets the
 epoch clock**, so an epoch deadline that expired during the intermission is
-postponed instead of triggering a second consultation on resume. (An epoch
+postponed instead of triggering a second consultation once play continues.
+(An epoch
 update that fired during the final seconds of *play* is legitimate
 play-time reasoning and is not suppressed.) The epoch clock can also be
 primed before a session starts: on a TTY the harness runs an interactive
-setup wizard (games, epoch period, style directive, reasoning display —
-`--no-prompt` skips it) with the flag values as preselected defaults.
+setup wizard (games, epoch period, strategy mode, style directive,
+reasoning display — `--no-prompt` skips it) with the flag values as
+preselected defaults.
 
 Every consultation is the same round trip:
 
@@ -50,7 +63,7 @@ sequenceDiagram
     participant P as HeuristicPolicy
     participant F as memory/mistral-strategy.json
 
-    Note over D: game paused (except opening call)
+    Note over D: async: game keeps playing / paused: game frozen
     D->>C: openingStrategy / wavePlan / epochUpdate / postMortem
     C->>C: build payload: state + epoch report + memory + previousGames
     C->>M: chat(systemPrompt, payload, JSON mode)
@@ -59,7 +72,7 @@ sequenceDiagram
     C->>F: save memory (games trimmed to maxMemoryGames)
     C-->>D: tuned ExecutorParams (or null on error → keep current)
     D->>P: setParams(params)
-    Note over D: game resumed (watchdog finally-resume)
+    Note over D: async: applied at the next tick / paused: game resumed (watchdog finally-resume)
 ```
 
 Key details:
@@ -99,8 +112,12 @@ Key details:
 - **Memory** persists across sessions in `memory/mistral-strategy.json`:
   the model's free-form lessons plus per-game records (score, outcome,
   summary, final params), trimmed to `VERMINVADERS_MEMORY_MAX_GAMES`.
-- **Safety**: every LLM call site is wrapped in `pause → try → finally
-  resume`, so a crash mid-call can never leave the game frozen.
+- **Safety**: in paused mode every LLM call site is wrapped in
+  `pause → try → finally resume`, so a crash mid-call can never leave the
+  game frozen. In async mode nothing is ever paused; consultations are
+  serialized inside the controller (a wave plan or post-mortem waits for an
+  in-flight epoch update instead of overlapping it), and a failed or
+  unparseable answer simply keeps the current params.
 
 ## 2. The policy calls (executor decision logic)
 
@@ -507,10 +524,10 @@ plumbed into the executor between ticks. This is that path, zoomed in:
 
 ```mermaid
 flowchart TB
-    subgraph consult ["Consultation (game paused: opening / waveclear / epoch)"]
+    subgraph consult ["Consultation (async: game keeps playing / paused: game frozen)"]
         M["Mistral model<br/>(--model, JSON mode)"]
         M -->|"JSON: { params, notes, memory }"| PS["parseStrategyResponse<br/>(strategy-params.ts; prose-wrapped JSON fallback)"]
-        PS -->|"unparseable or LLM error"| KEEP["keep current params<br/>(finally watchdog resumes the game)"]
+        PS -->|"unparseable or LLM error"| KEEP["keep current params<br/>(paused mode: finally watchdog resumes the game)"]
         PS --> NP["normalizeParams:<br/>clamp every value to its legal range,<br/>pad/clamp rowWeights, colAvoid, livesRisk,<br/>invalid values fall back to DEFAULT_EXECUTOR_PARAMS"]
         NP --> SP["policy.setParams merge:<br/>defaults, then previous, then new partial<br/>(untouched knobs persist across epochs)"]
     end
@@ -555,8 +572,9 @@ post-mortem's next-game plan and the levers the executor plays with.
 "Le Chonk's thoughts" is the feed beside the canvas, capped at the
 playing window's height (604px) and streaming the model's raw
 reasoning chain live (`onThinkingDelta`, throttled to ~7 Hz, tail
-kept). While the game is paused for a consultation both panels are
-marked live (pulsing status, blinking cursor). The panel bodies
+kept). While a consultation is streaming, both panels are marked live
+(pulsing status, blinking cursor) - in async mode that happens while
+the game keeps playing. The panel bodies
 scroll internally (`min-height: 0` + `contain: inline-size`: long
 streams must neither grow their panels nor inflate the stage). The
 harness window is sized to fit the whole stage plus a 24px body

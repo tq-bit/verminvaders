@@ -65,7 +65,8 @@
             Mistral's <em>mistral-large-4</em> model. It never touches the controls.
             It reads a report of how the wave is going and decides <em>how the
             executor's reflexes should be weighted</em> - the cat's personality, if
-            you will. It is the cat's brain, consulted between heartbeats.
+            you will. It is the cat's brain - and it reasons in the background,
+            mid-heartbeat, while the spinal cord keeps the cat alive.
           </p>
         </div>
       </div>
@@ -83,16 +84,20 @@
     <!-- ============ four moments ============ -->
     <section class="section prose" id="moments" aria-labelledby="moments-title">
       <p class="section__eyebrow">When the model thinks</p>
-      <h2 id="moments-title">Four moments, never mid-heartbeat</h2>
+      <h2 id="moments-title">Four moments, mid-play included</h2>
       <p>
-        The strategist is consulted at exactly four moments. The game is paused for
-        each call (except the opening, which happens on the title screen), so a slow
-        model can never cost a life - the cat literally takes a nap while thinking.
+        The strategist is consulted at exactly four moments. The mid-play ones -
+        the wave plan and the check-in - run in the background: the cat keeps
+        dodging and shooting while the model reasons, and the tuned plan applies
+        the moment it arrives. So do the opening and the post-mortem: the next
+        game starts immediately and the game-over tuning applies a few seconds
+        into it. For purists there is also a catnap mode that freezes the game
+        around every call, so network latency can never cost a life.
       </p>
       <div class="insight-grid" style="margin-top: 1.5rem;">
         <div class="card card-hover">
           <h3>1. The opening</h3>
-          <p class="card__body">Before game one: the model reads its memory of past sessions and writes the first plan.</p>
+          <p class="card__body">Before game one: the executor warm-starts on the last params the model played with, then the model reads its memory of past sessions and writes a fresh plan in the background.</p>
         </div>
         <div class="card card-hover">
           <h3>2. The wave plan</h3>
@@ -104,16 +109,18 @@
         </div>
         <div class="card card-hover">
           <h3>4. The post-mortem</h3>
-          <p class="card__body">On the game-over screen: what killed us, what to try next game. Then it all goes into memory.</p>
+          <p class="card__body">On game over: what killed us, what to try next game - reasoned in the background while the next game is already being played. Then it all goes into memory.</p>
         </div>
       </div>
       <p>
-        Every consultation is the same round trip: pause, show the model the current
+        Every consultation is the same round trip: show the model the current
         situation plus a statistics report plus its notes, receive a tuned set of
         levers, clamp every value into its legal range (a bad answer can degrade
-        play but never break it), resume. If the answer is garbage, the current
-        settings simply stay - and a watchdog makes sure the game always un-pauses,
-        even if the model call crashes outright.
+        play but never break it), then apply - at the next tick boundary, never
+        mid-decision. If the answer is garbage, the current settings simply stay;
+        consultations are serialized so two model calls never overlap. In catnap
+        mode the game freezes around each call instead, with a watchdog that
+        always un-pauses, even if the model call crashes outright.
       </p>
     </section>
 

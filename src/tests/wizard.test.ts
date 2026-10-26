@@ -44,46 +44,63 @@ describe("promptConfig", () => {
   const base = () => parseArgs(["node", "main.ts"]);
 
   it("keeps all defaults on empty answers", async () => {
-    const rl = scripted(["", "", "", ""]);
+    const rl = scripted(["", "", "", "", ""]);
     const a = await promptConfig(base(), rl);
     assert.equal(a.maxGames, 3);
     assert.equal(a.epochMs, undefined, "empty answer keeps the per-wave default");
+    assert.equal(a.strategyMode, "async", "empty answer keeps the async default");
     assert.equal(a.style, "");
     assert.equal(a.thinking, true);
   });
 
   it("applies the given answers", async () => {
-    const rl = scripted(["5", "2.5", "be a menace", "n"]);
+    const rl = scripted(["5", "2.5", "paused", "be a menace", "n"]);
     const a = await promptConfig(base(), rl);
     assert.equal(a.maxGames, 5);
     assert.equal(a.epochMs, 2500);
+    assert.equal(a.strategyMode, "paused");
     assert.equal(a.style, "be a menace");
     assert.equal(a.thinking, false);
   });
 
   it("offers flag values as the defaults and keeps them on Enter", async () => {
-    const preset = parseArgs(["node", "main.ts", "--games", "9", "--epoch-ms", "4000", "--style", "cowardly cat"]);
-    const rl = scripted(["", "", "", ""]);
+    const preset = parseArgs([
+      "node",
+      "main.ts",
+      "--games",
+      "9",
+      "--epoch-ms",
+      "4000",
+      "--strategy-mode",
+      "paused",
+      "--style",
+      "cowardly cat",
+    ]);
+    const rl = scripted(["", "", "", "", ""]);
     const a = await promptConfig(preset, rl);
     assert.equal(a.maxGames, 9);
     assert.equal(a.epochMs, 4000);
+    assert.equal(a.strategyMode, "paused");
     assert.equal(a.style, "cowardly cat");
     assert.ok(rl.seen[0].includes("(9)"), "flag value must be shown as the default");
     assert.ok(rl.seen[1].includes("(4)"), "epoch flag value must be shown in seconds");
-    assert.ok(rl.seen[2].includes("(cowardly cat)"));
+    assert.ok(rl.seen[2].includes("(paused)"), "strategy mode flag value must be shown");
+    assert.ok(rl.seen[3].includes("(cowardly cat)"));
   });
 
   it("shows the per-wave default when no epoch flag is given", async () => {
-    const rl = scripted(["", "", "", ""]);
+    const rl = scripted(["", "", "", "", ""]);
     await promptConfig(base(), rl);
     assert.ok(rl.seen[1].includes("(per wave)"), "the epoch default must read 'per wave'");
+    assert.ok(rl.seen[2].includes("(async)"), "the strategy mode default must read 'async'");
   });
 
   it("falls back to the default on garbage input", async () => {
-    const rl = scripted(["banana", "later", "", ""]);
+    const rl = scripted(["banana", "later", "sometimes", "", ""]);
     const a = await promptConfig(base(), rl);
     assert.equal(a.maxGames, 3);
     assert.equal(a.epochMs, undefined, "invalid epoch keeps the per-wave default");
+    assert.equal(a.strategyMode, "async", "invalid mode keeps the async default");
     assert.equal(a.style, "");
   });
 });

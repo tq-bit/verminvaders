@@ -1,7 +1,9 @@
-// Strategic brain integration: every epoch the harness pauses the game,
-// sends state + report + persistent memory to Mistral, and the model returns
-// tuned executor params plus an updated memory object. Post-mortems write a
-// per-game strategy summary and clean up the memory.
+// Strategic brain integration: every epoch the harness sends state + report +
+// persistent memory to Mistral, and the model returns tuned executor params
+// plus an updated memory object. In async mode (--strategy-mode async) the
+// driver fires epoch updates and wave plans in the background while the game
+// keeps playing; all consultations are serialized here so they never overlap.
+// Post-mortems write a per-game strategy summary and clean up the memory.
 
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
@@ -33,6 +35,10 @@ export class StrategyController {
   private notes = "";
   private lastParams: ExecutorParams | null = null;
   private limits: StrategyLimits;
+  /** async mode: the game keeps playing while the model reasons */
+  private asyncStrategy: boolean;
+  /** promise chain: consultations never overlap (shared memory + callbacks) */
+  private queue: Promise<unknown> = Promise.resolve();
 
   private style: string;
 
@@ -59,12 +65,14 @@ export class StrategyController {
     cb: StrategyEvents = {},
     style = "",
     limits: Partial<StrategyLimits> = {},
+    asyncStrategy = false,
   ) {
     this.client = client;
     this.memoryPath = memoryPath;
     this.cb = cb;
     this.style = style;
     this.limits = { ...DEFAULT_STRATEGY_LIMITS, ...limits };
+    this.asyncStrategy = asyncStrategy;
   }
 
   get tracker(): EpochTracker {
@@ -110,8 +118,14 @@ export class StrategyController {
   // Epoch update: returns tuned executor params (or null to keep current).
   async epochUpdate(s: GameState): Promise<ExecutorParams | null> {
     const report = this.epochTracker.report(s, Date.now());
+    // in async mode the game keeps running while the model reasons: the
+    // report is a snapshot from the moment the epoch ended, and the tuned
+    // params apply mid-play the moment the answer arrives
+    const urgency = this.asyncStrategy
+      ? "The game keeps playing while you reason — this report is a snapshot from the moment the epoch ended, and your params apply the instant you return. Reason fast and decisively."
+      : "";
     return this.askModel(
-      `Epoch ${report.epoch} finished. Adjust your strategy.`,
+      `Epoch ${report.epoch} finished. Adjust your strategy.${urgency ? " " + urgency : ""}`,
       {
         epochReport: report,
         state: compactState(s),
@@ -124,8 +138,11 @@ export class StrategyController {
   // Wave intermission: the model retunes for the incoming wave (deeper start,
   // faster fire) before play resumes.
   async wavePlan(s: GameState): Promise<ExecutorParams | null> {
+    const urgency = this.asyncStrategy
+      ? "The next wave is already marching while you reason — your params apply the instant you return."
+      : "";
     return this.askModel(
-      `Wave ${s.wave} cleared. Retune your strategy for the next wave.`,
+      `Wave ${s.wave} cleared. Retune your strategy for the next wave.${urgency ? " " + urgency : ""}`,
       {
         state: compactState(s),
         memory: this.memory.memory,
@@ -179,12 +196,36 @@ export class StrategyController {
     return n === 0 ? [] : this.memory.games.slice(-n);
   }
 
+  // Warm start: the last params the model played with — the newest game
+  // record's finalParams, written by that game's post-mortem. The executor
+  // opens a new session on them (instead of factory defaults) while the
+  // opening consultation retunes in the background. Null on a fresh brain.
+  lastKnownParams(): ExecutorParams | null {
+    for (let i = this.memory.games.length - 1; i >= 0; i--) {
+      const p = this.memory.games[i].finalParams;
+      if (p) return p;
+    }
+    return null;
+  }
+
   private async askModel(instruction: string, payload: unknown): Promise<ExecutorParams | null> {
     const resp = await this.askModelRaw(instruction, payload);
     return resp ? normalizeParams(resp.params) : null;
   }
 
+  // Consultations are serialized: in async mode the driver fires epoch
+  // updates and wave plans in the background, and a post-mortem or wave plan
+  // can arrive while an epoch consultation is still streaming. They all
+  // share this.memory, this.lastParams and the UI callbacks — so they run
+  // one at a time, in the order they were requested.
   private async askModelRaw(instruction: string, payload: unknown): Promise<StrategyResponse | null> {
+    const run = () => this.doAskModelRaw(instruction, payload);
+    const result = this.queue.then(run, run);
+    this.queue = result.catch(() => {});
+    return result;
+  }
+
+  private async doAskModelRaw(instruction: string, payload: unknown): Promise<StrategyResponse | null> {
     const messages = [
       { role: "system", content: systemPrompt(this.style) },
       { role: "user", content: `${instruction}\n\n${JSON.stringify(payload)}` },

@@ -11,6 +11,8 @@ export interface Args {
   model: string;
   /** strategy-epoch length in ms; undefined = no epoch updates (per-wave) */
   epochMs?: number;
+  /** async = play on while Mistral strategizes; paused = freeze during consultations */
+  strategyMode: "async" | "paused";
   memoryPath: string;
   style: string;
   noLlm: boolean;

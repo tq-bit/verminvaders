@@ -68,6 +68,17 @@ export async function promptConfig(args: Args, rl: Questioner): Promise<Args> {
     if (Number.isFinite(n) && n > 0) out.epochMs = Math.round(n * 1000);
     else console.error(c.yellow(`[harness] ignoring invalid epoch "${t}", keeping ${epochDefault}`));
   } // empty answer keeps args.epochMs (possibly undefined = per wave)
+  // strategy mode: async keeps the game running while Mistral reasons
+  const modeDefault = args.strategyMode;
+  const rawMode = (
+    await rl.question(
+      `Strategy mode — async (play while Mistral thinks) or paused (catnap while it reasons)? (${modeDefault}): `,
+    )
+  ).trim().toLowerCase();
+  if (rawMode) {
+    if (rawMode === "async" || rawMode === "paused") out.strategyMode = rawMode;
+    else console.error(c.yellow(`[harness] ignoring invalid strategy mode "${rawMode}", keeping ${modeDefault}`));
+  } // empty answer keeps args.strategyMode
   const styleDefault = args.style.trim() ? args.style : "none";
   out.style =
     (await rl.question(`Style directive for the model (${styleDefault}): `)).trim() || args.style;
@@ -78,7 +89,7 @@ export async function promptConfig(args: Args, rl: Questioner): Promise<Args> {
 
   console.log(
     c.blue(
-      `[harness] games=${out.maxGames} epoch=${out.epochMs === undefined ? "per wave" : `${out.epochMs / 1000}s`} style="${
+      `[harness] games=${out.maxGames} epoch=${out.epochMs === undefined ? "per wave" : `${out.epochMs / 1000}s`} strategy=${out.strategyMode} style="${
         out.style.trim() ? out.style : "none"
       }" reasoning=${out.thinking ? "streamed" : "Strategizing indicator"}`,
     ),

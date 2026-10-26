@@ -8,6 +8,8 @@ export interface RunOptions {
   maxGames: number;
   /** strategy-epoch length in ms; undefined = no epoch updates (per-wave strategy) */
   epochMs?: number;
+  /** async = strategize in the background, never pause play; paused = freeze during consultations */
+  strategyMode?: "async" | "paused";
   logLevel: "silent" | "normal" | "verbose";
 }
 

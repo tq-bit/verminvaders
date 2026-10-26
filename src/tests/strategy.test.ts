@@ -76,6 +76,25 @@ class StreamingFakeClient extends FakeClient {
   }
 }
 
+// Each chat() call blocks until release(): mimics a slow, streaming LLM call.
+class GatedFakeClient extends FakeClient {
+  starts = 0;
+  private waiters: Array<() => void> = [];
+
+  release(): void {
+    this.waiters.shift()?.();
+  }
+
+  override async chat(
+    messages: Array<{ role: string; content: string }>,
+    opts: Record<string, unknown> = {},
+  ): Promise<string> {
+    this.starts++;
+    await new Promise<void>((r) => this.waiters.push(r));
+    return super.chat(messages, opts);
+  }
+}
+
 describe("normalizeParams", () => {
   it("keeps sane values and clamps out-of-range ones", () => {
     const p = normalizeParams({
@@ -236,6 +255,36 @@ describe("StrategyController per-game summaries and limits", () => {
     await rm(tmpFile, { force: true });
   });
 
+  it("lastKnownParams warm-starts a new session on the model's last params", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new FakeClient();
+    const ctrl = await newController(fake, 5, 3);
+    assert.equal(ctrl.lastKnownParams(), null, "a fresh brain has no last-known params");
+
+    fake.answer = JSON.stringify({
+      params: { rngSeed: 1, dodgeHorizonS: 1.0 },
+      notes: "first game",
+      memory: {},
+    });
+    await ctrl.postMortem(makeState({ score: 100 }), 1);
+    fake.answer = JSON.stringify({
+      params: { rngSeed: 2, dodgeHorizonS: 1.5 },
+      notes: "second game",
+      memory: {},
+    });
+    await ctrl.postMortem(makeState({ score: 200 }), 2);
+
+    const latest = ctrl.lastKnownParams();
+    assert.equal(latest?.rngSeed, 2, "the newest game's params win");
+    assert.equal(latest?.dodgeHorizonS, 1.5);
+
+    // the next session must find them after loading the persisted memory
+    const nextSession = await newController(new FakeClient(), 5, 3);
+    assert.equal(nextSession.lastKnownParams()?.rngSeed, 2, "params persist across sessions");
+    assert.equal(nextSession.lastKnownParams()?.dodgeHorizonS, 1.5);
+    await rm(tmpFile, { force: true });
+  });
+
   it("limits previous games in prompts to contextGames", async () => {
     await rm(tmpFile, { force: true });
     const fake = new FakeClient();
@@ -356,6 +405,84 @@ describe("StrategyController per-game summaries and limits", () => {
     assert.ok(diag.includes("I refuse to answer in JSON."), "the raw response must be dumped");
     assert.ok(diag.includes("unparseable strategy response:"), "entries must be timestamped and labeled");
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it("serializes overlapping consultations: the second waits for the first", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new GatedFakeClient();
+    fake.answer = JSON.stringify({
+      params: { dodgeHorizonS: 1.2 },
+      notes: "tuned",
+      memory: { first: true },
+    });
+    const ctrl = new StrategyController(
+      fake as unknown as MistralClient,
+      tmpFile,
+      {},
+      "",
+      { contextGames: 1, maxMemoryGames: 2 },
+    );
+    await ctrl.load();
+
+    const flush = () => new Promise<void>((r) => setImmediate(r));
+    // the controller persists memory between consultations (real fs I/O), so
+    // poll the call counter instead of assuming a fixed number of flushes
+    const until = async (cond: () => boolean) => {
+      for (let i = 0; i < 100 && !cond(); i++) await flush();
+    };
+    const epochP = ctrl.epochUpdate(makeState()); // in flight, not awaited
+    await until(() => fake.starts === 1);
+    const waveP = ctrl.wavePlan(makeState({ wave: 2 })); // overlaps
+    await flush();
+    assert.equal(fake.starts, 1, "the second consultation must wait for the first");
+
+    fake.release(); // first finishes; the queued second starts
+    await until(() => fake.starts === 2);
+    assert.equal(fake.starts, 2, "the second consultation starts after the first");
+    fake.release();
+    await Promise.all([epochP, waveP]);
+
+    const saved = JSON.parse(await readFile(tmpFile, "utf-8"));
+    assert.deepEqual(saved.memory, { first: true }, "both answers processed in order");
+    await rm(tmpFile, { force: true });
+  });
+
+  it("tells the model the game keeps playing when strategy mode is async", async () => {
+    await rm(tmpFile, { force: true });
+    const pausedClient = new FakeClient();
+    const pausedCtrl = new StrategyController(
+      pausedClient as unknown as MistralClient,
+      tmpFile,
+      {},
+      "",
+      { contextGames: 1, maxMemoryGames: 2 },
+      false,
+    );
+    await pausedCtrl.load();
+    await pausedCtrl.epochUpdate(makeState());
+    assert.ok(!pausedClient.lastPayload.includes("keeps playing"), "paused mode keeps the old instruction");
+
+    const asyncClient = new FakeClient();
+    const asyncCtrl = new StrategyController(
+      asyncClient as unknown as MistralClient,
+      tmpFile,
+      {},
+      "",
+      { contextGames: 1, maxMemoryGames: 2 },
+      true,
+    );
+    await asyncCtrl.load();
+    await asyncCtrl.epochUpdate(makeState());
+    assert.ok(
+      asyncClient.lastPayload.includes("keeps playing while you reason"),
+      "async mode must tell the model play continues",
+    );
+    await asyncCtrl.wavePlan(makeState({ wave: 2 }));
+    assert.ok(
+      asyncClient.lastPayload.includes("already marching while you reason"),
+      "async wave plans must carry the urgency note",
+    );
+    await rm(tmpFile, { force: true });
   });
 });
 

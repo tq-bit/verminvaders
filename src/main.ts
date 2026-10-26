@@ -7,7 +7,8 @@
 //   node main.ts [--headed] [--mode realtime|considered] [--poll <ms>]
 //                [--games <n>] [--persona <path>] [--game <path>]
 //                [--log-level silent|normal|verbose] [--model <name>]
-//                [--epoch-ms <n>] [--memory <path>] [--style 'directive']
+//                [--epoch-ms <n>] [--strategy-mode async|paused]
+//                [--memory <path>] [--style 'directive']
 //                [--no-llm] [--no-thinking] [--no-prompt]
 
 import path from "node:path";
@@ -101,6 +102,7 @@ async function main(): Promise<void> {
     pollMs: args.pollMs,
     maxGames: args.maxGames,
     epochMs: args.noLlm ? 0 : args.epochMs,
+    strategyMode: args.noLlm ? "paused" : args.strategyMode,
     logLevel: args.logLevel,
   };
 
@@ -184,6 +186,7 @@ async function main(): Promise<void> {
       },
       args.style,
       limits,
+      args.strategyMode === "async",
     );
     await strategy.load();
   }
@@ -202,7 +205,7 @@ async function main(): Promise<void> {
     console.log(c.blue(`[harness] playing ${path.basename(args.gamePath)} at ${url}`));
     console.log(
       c.blue(
-        `[harness] mode=${opts.mode} poll=${opts.pollMs}ms games=${opts.maxGames} brain=${args.noLlm ? "local-executor" : `${args.model} @ ${opts.epochMs !== undefined ? `${opts.epochMs}ms epochs` : "per-wave strategy"}`}${args.style ? c.yellow(` style="${args.style}"`) : ""}`,
+        `[harness] mode=${opts.mode} poll=${opts.pollMs}ms games=${opts.maxGames} brain=${args.noLlm ? "local-executor" : `${args.model} @ ${opts.epochMs !== undefined ? `${opts.epochMs}ms epochs` : "per-wave strategy"} (${opts.strategyMode === "async" ? "plays while thinking" : "pauses while thinking"})`}${args.style ? c.yellow(` style="${args.style}"`) : ""}`,
       ),
     );
     await harness.run();

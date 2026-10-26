@@ -139,8 +139,10 @@
       <p class="section__lead">
         A short, real recording of the harness playing Verminvaders. The cat's
         reflexes come from deterministic code; every strategy call goes to
-        mistral-large-4, which pauses the game, reads the situation, retunes its
-        parameters and resumes play. The panels show exactly what it is thinking.
+        mistral-large-4, which reads the situation mid-play and retunes its
+        parameters. The cat keeps playing while the model reasons - the tuned
+        plan applies the moment it arrives. The panels show exactly what it is
+        thinking.
       </p>
 
       <div class="figure-grid">
@@ -202,12 +204,16 @@
           </p>
         </div>
         <div class="card card-hover">
-          <h3>Plays fair, keeps notes</h3>
+          <h3>Plays on, keeps notes</h3>
           <p class="card__body">
-            The game pauses while the model thinks, so network latency can never cost
-            a life - a watchdog guarantees play resumes even if the model call fails.
-            And between games the strategist keeps notes: what worked, where it died,
-            which columns rain crumbs. Next game, it opens with a plan.
+            The game never stops for the model: while mistral-large-4 reasons, the
+            executor keeps dodging and shooting with its current settings, and the
+            tuned plan is applied at the next tick boundary when the answer lands.
+            A bad or late answer just keeps the current settings - it can degrade
+            play, but never break it. (Prefer the fair-play catnap? The harness can
+            also freeze the game around every consultation.) And between games the
+            strategist keeps notes: what worked, where it died, which columns rain
+            crumbs. Next game, it opens with a plan.
           </p>
         </div>
         <div class="card card-hover">
