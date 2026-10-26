@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="How Verminvaders' AI plays the game, explained for non-developers: two brains, tunable levers, hidden dice, and whether the model can find the game's secret cheat code." />
+<title>Development insights - Verminvaders</title>
+<link rel="icon" href="../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/site.css" />
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<nav class="navbar" aria-label="Main">
+  <div class="navbar__inner">
+    <a class="navbar__brand" href="../">(=&middot;&omega;&middot;=) Verminvaders</a>
+    <ul class="navbar__links">
+      <li><a class="navbar__link" href="../">Landing</a></li>
+      <li><a class="navbar__link" href="../#how-to-play">How to play</a></li>
+      <li><a class="navbar__link" href="../game/">Play the game</a></li>
+      <li><a class="btn btn--primary navbar__cta" href="https://github.com/tq-bit/verminvaders">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main id="main">
+  <div class="container">
+    <section class="section" id="insights-intro" style="padding-top: 3rem;">
+      <a class="backlink" href="../">&larr; Back to the landing page</a>
+      <p class="section__eyebrow">Development insights</p>
+      <h1 class="section__title" style="font-size: clamp(1.75em, 5vw, 2.75em);">
+        How the <span class="gradient-text gradient-text--animated">AI</span> plays Verminvaders
+      </h1>
+      <p class="section__lead prose">
+        This page retells the project's development guide for everyone who did not
+        build it. No code, no file paths - just what the AI sees, what it is allowed
+        to change, and the two little research mysteries that came out of it.
+      </p>
+    </section>
+
+    <!-- ============ two brains ============ -->
+    <section class="section prose" id="two-brains" aria-labelledby="two-brains-title">
+      <p class="section__eyebrow">The architecture</p>
+      <h2 id="two-brains-title">Two brains, one cat</h2>
+      <p>
+        Making a language model play a reflex game in real time is a bad idea - by
+        the time the model finished composing an answer, the crumb would have landed.
+        So the cat is driven by two cooperating layers with strictly separated jobs:
+      </p>
+      <div class="insight-grid" style="margin-top: 1.5rem;">
+        <div class="card card-hover">
+          <h3>The executor - fast but dumb</h3>
+          <p class="card__body">
+            Plain, deterministic code. Every 80 milliseconds it looks at the game and
+            decides one thing: is this a moment to dodge, to reposition, or to shoot?
+            It never talks to the internet. It is the cat's spinal cord.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>The strategist - smart but slow</h3>
+          <p class="card__body">
+            Mistral's <em>mistral-large-4</em> model. It never touches the controls.
+            It reads a report of how the wave is going and decides <em>how the
+            executor's reflexes should be weighted</em> - the cat's personality, if
+            you will. It is the cat's brain, consulted between heartbeats.
+          </p>
+        </div>
+      </div>
+      <p>
+        The only channel between them is a small set of numbers - the executor's
+        tuning levers - plus the strategist's own notebook, which it keeps between
+        games. Everything the model wants must fit through that narrow door.
+      </p>
+      <figure class="figure figure--wide card figure__frame" style="max-width: 720px; margin-top: 1.5rem;">
+        <img src="../assets/shot-ai-playing.png" alt="The game window with the strategy panel and the thinking panel streamed live next to the canvas." loading="lazy" />
+        <figcaption>Both brains on screen: the settled strategy above the stage, the model's raw reasoning chain streamed on the right</figcaption>
+      </figure>
+    </section>
+
+    <!-- ============ four moments ============ -->
+    <section class="section prose" id="moments" aria-labelledby="moments-title">
+      <p class="section__eyebrow">When the model thinks</p>
+      <h2 id="moments-title">Four moments, never mid-heartbeat</h2>
+      <p>
+        The strategist is consulted at exactly four moments. The game is paused for
+        each call (except the opening, which happens on the title screen), so a slow
+        model can never cost a life - the cat literally takes a nap while thinking.
+      </p>
+      <div class="insight-grid" style="margin-top: 1.5rem;">
+        <div class="card card-hover">
+          <h3>1. The opening</h3>
+          <p class="card__body">Before game one: the model reads its memory of past sessions and writes the first plan.</p>
+        </div>
+        <div class="card card-hover">
+          <h3>2. The wave plan</h3>
+          <p class="card__body">Every cleared wave, during the intermission: what to do differently in the next wave.</p>
+        </div>
+        <div class="card card-hover">
+          <h3>3. The check-in</h3>
+          <p class="card__body">Optionally every few seconds of play: a fresh progress report - shots, hits, crumb patterns - and a retune. This mode can also be switched off for one-plan-per-wave play.</p>
+        </div>
+        <div class="card card-hover">
+          <h3>4. The post-mortem</h3>
+          <p class="card__body">On the game-over screen: what killed us, what to try next game. Then it all goes into memory.</p>
+        </div>
+      </div>
+      <p>
+        Every consultation is the same round trip: pause, show the model the current
+        situation plus a statistics report plus its notes, receive a tuned set of
+        levers, clamp every value into its legal range (a bad answer can degrade
+        play but never break it), resume. If the answer is garbage, the current
+        settings simply stay - and a watchdog makes sure the game always un-pauses,
+        even if the model call crashes outright.
+      </p>
+    </section>
+
+    <!-- ============ levers ============ -->
+    <section class="section prose" id="levers" aria-labelledby="levers-title">
+      <p class="section__eyebrow">The model's toolbox</p>
+      <h2 id="levers-title">Sixteen levers the AI may pull</h2>
+      <p>
+        The model's entire influence on the game is a list of tuning numbers. A few
+        of the most interesting ones, translated:
+      </p>
+      <ul>
+        <li><strong>Dodge horizon</strong> - how far ahead the cat reacts to falling crumbs. Long horizon: smooth, busy cat. Short: cool cat that cuts it close.</li>
+        <li><strong>Risk appetite per life</strong> - three sliders for three, two and one life. At one life, the model can decide the cat should stop playing it safe and start trading shields for kills.</li>
+        <li><strong>Row and column preferences</strong> - private urgencies for each rodent row and each column, so the model can decide, say, "never camp in column two".</li>
+        <li><strong>Exploration &amp; aim jitter</strong> - deliberately imperfect play. Exploration sometimes picks the second- or third-best target; jitter aims slightly off-center. Less predictable, but shots start missing.</li>
+        <li><strong>Laziness</strong> - a price on walking. High values stop the cat from sprinting across the arena for every slightly better target.</li>
+        <li><strong>Fire dilution</strong> - a penalty for killing a column's last rodent. Fewer surviving columns concentrate the rodents' fire, so sometimes the model deliberately leaves shooters alive to keep the crumb rain spread out.</li>
+      </ul>
+      <p>
+        The model must set all of them on every answer, and every value is clamped
+        to a legal range before it reaches the cat. Whatever it sends, the game keeps
+        running.
+      </p>
+    </section>
+
+    <!-- ============ dice ============ -->
+    <section class="section prose" id="dice" aria-labelledby="dice-title">
+      <p class="section__eyebrow">Determinism</p>
+      <h2 id="dice-title">The dice behind the game</h2>
+      <p>
+        Both sides of the board throw dice - but they are <em>loaded, recorded
+        dice</em>. The executor's randomness runs through a seeded generator: the
+        same seed, the same choices, every time. The rodents have their own
+        generator for their firing, and it can be seeded too. Fix both seeds and a
+        whole game replays pixel for pixel - which is what makes bugs testable and
+        experiments repeatable.
+      </p>
+      <p>
+        The strategist can change either seed whenever it likes. Which leads to the
+        strangest easter egg in this project:
+      </p>
+      <h3>Can the model find the secret cheat code?</h3>
+      <p>
+        There is a lever in the toolbox that the model is <em>never told about</em>:
+        the seed of the rodents' firing dice. Set it to a lucky value and the crumb
+        pattern of the next game becomes predetermined - in theory, the perfect
+        rig. The model can discover it, though: the field exists in the strict
+        response format it must fill out, the prompt conspicuously lists one lever
+        fewer than the format asks for, and the statistics report shows where crumbs
+        spawn. It is a small, fair treasure hunt - the model must infer "seed means
+        replayable dice" on its own.
+      </p>
+      <p class="muted">
+        The catch: because the field is mandatory, even a lazy model has to send
+        <em>something</em> every round. "Always sends 42" proves nothing. The tell is
+        the sequence - experimenting early, then settling on seeds whose crumb
+        histograms stay away from its favorite camping column, with notes that show
+        it understands why.
+      </p>
+    </section>
+
+    <!-- ============ difficulty ============ -->
+    <section class="section prose" id="difficulty" aria-labelledby="difficulty-title">
+      <p class="section__eyebrow">Game design</p>
+      <h2 id="difficulty-title">Why wave one is brutal</h2>
+      <p>
+        The numbers behind the difficulty were tuned deliberately asymmetric: the
+        player's offense has a hard throughput limit, the rodents' offense never
+        weakens.
+      </p>
+      <ul>
+        <li><strong>One furball at a time</strong> - about one shot per second once repositioning is counted. Forty rodents per wave means a clean clear takes over a minute of uninterrupted shooting.</li>
+        <li><strong>The fire never slows down</strong> - the rodents keep dropping crumbs at the same rate all game, even when only a handful are left. Fewer shooters, same rate, all of it concentrated.</li>
+        <li><strong>The endgame accelerates</strong> - at four rodents left, the formation marches about eight times faster than at forty. That is exactly where runs die.</li>
+        <li><strong>Three lives</strong> - against a crumb roughly every second and a half, one dodge failure in thirty is fatal three times over.</li>
+      </ul>
+      <p>
+        The AI's own record confirms the curve: it lost its first three games on
+        wave one - twice reaching 36 of 40 rodents. The counter-levers it developed
+        were diluting enemy fire, going aggressive at one life, and refusing
+        cross-arena sprints.
+      </p>
+    </section>
+
+    <!-- ============ jitter ============ -->
+    <section class="section prose" id="jitter" aria-labelledby="jitter-title">
+      <p class="section__eyebrow">A bug story</p>
+      <h2 id="jitter-title">The case of the indecisive cat</h2>
+      <p>
+        Early on, the cat had a tic: under dense fire it would gait
+        left-right-left-right instead of gliding to a safe spot. The cause was not
+        one bug but an interaction - every 80 ms the executor re-decided its dodge
+        destination from scratch, and borderline situations flipped back and forth
+        between "dodge" and "aim", dragging the cat across the arena.
+      </p>
+      <p>
+        The fix: commitment. Once a dodge destination is chosen, the cat commits to
+        it and only re-plans if that spot <em>actually</em> becomes unsafe - checked
+        with the exact same criterion that picked it, so the answer cannot flip just
+        because the cat moved along its own path. Dodging one crumb into another
+        crumb's column became impossible too.
+      </p>
+      <h3>Could the model have diagnosed it?</h3>
+      <p>
+        Here is the research question this project ended on. Before the fix's
+        telemetry existed, the model could see the <em>symptoms</em> - hit rates
+        collapsing under heavy fire, many near misses - but no number in any report
+        could distinguish "my movement logic thrashes" from "bad luck" or "my own
+        parameter choices". It might have stumbled into mitigation (shrinking the
+        dodge window) without ever naming the cause. The reports now count direction
+        changes and how the decision time is spent - exactly what decision-flapping
+        looks like in data. The question has moved from "can it see the jitter?" (it
+        can now) to "will it use it?".
+      </p>
+      <div class="callout">
+        The whole loop in one sentence: <strong>the executor plays; the tracker
+        records what happened; every wave, check-in and game-over the model reads
+        that record, retunes the levers, and the executor plays differently.</strong>
+      </div>
+    </section>
+
+    <!-- ============ closing ============ -->
+    <section class="section prose" id="closing">
+      <h2>See it for yourself</h2>
+      <p>
+        Play the game the AI trains on, or watch a recorded session on the landing
+        page. The full development guide - with the diagrams, parameter tables and
+        experiment designs behind this retelling - lives in
+        <a class="link-underline" href="https://github.com/tq-bit/verminvaders/blob/main/DEVELOPMENT.md">DEVELOPMENT.md on GitHub</a>.
+      </p>
+      <p style="margin-top: 1.5rem;">
+        <a class="btn btn--primary" href="../game/">Play the game</a>
+        <a class="btn btn--muted" href="../#watch">Watch the recording</a>
+      </p>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container footer__inner">
+    <ul class="footer__links">
+      <li><a class="footer__link" href="../">Landing page</a></li>
+      <li><a class="footer__link" href="../game/">Play the game</a></li>
+      <li><a class="footer__link" href="https://github.com/tq-bit/verminvaders">GitHub repository</a></li>
+    </ul>
+    <p class="footer__copyright">
+      Verminvaders - development insights, translated from the project's development guide.
+    </p>
+  </div>
+</footer>
+
+<script src="../assets/flow-background.js"></script>
+<script>FlowBackground.init();</script>
+</body>
+</html>

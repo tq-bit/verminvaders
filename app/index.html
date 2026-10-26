@@ -3,31 +3,254 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Verminvaders</title>
-<link rel="stylesheet" href="style.css" />
+<meta name="description" content="Verminvaders: a Space Invaders homage where a cat defends the last lasagna on Earth - and an LLM plays the game. Built for the Mistral October Community Challenge." />
+<title>Verminvaders - Le Chonk defends the last lasagna</title>
+<link rel="icon" href="assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/site.css" />
 </head>
-
 <body>
-<main class="stage">
-  <div class="stage__left">
-    <aside id="strategy-panel" class="strategy" hidden aria-live="polite">
-      <header class="strategy__header">
-        <h2 class="strategy__title">Current Strategy</h2>
-        <p class="strategy__status"><span class="strategy__dot" aria-hidden="true"></span><span class="strategy__status-text">Thinking about tuna</span></p>
-      </header>
-      <pre id="strategy-body" class="strategy__body"></pre>
-    </aside>
-    <canvas id="game" width="480" height="600"></canvas>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<nav class="navbar" aria-label="Main">
+  <div class="navbar__inner">
+    <a class="navbar__brand" href="#top">(=&middot;&omega;&middot;=) Verminvaders</a>
+    <ul class="navbar__links">
+      <li><a class="navbar__link" href="#how-to-play">How to play</a></li>
+      <li><a class="navbar__link" href="#screenshots">Screenshots</a></li>
+      <li><a class="navbar__link" href="#watch">Watch it play</a></li>
+      <li><a class="navbar__link" href="#built">How it was built</a></li>
+      <li><a class="navbar__link" href="insights/">Insights</a></li>
+      <li><a class="btn btn--primary navbar__cta" href="game/">Play now</a></li>
+    </ul>
   </div>
-  <aside id="thinking-panel" class="thinking" hidden aria-live="polite">
-    <header class="thinking__header">
-      <h2 class="thinking__title">Le Chonk's thoughts</h2>
-      <p class="thinking__status"><span class="thinking__dot" aria-hidden="true"></span><span class="thinking__status-text">thinking</span></p>
-    </header>
-    <pre id="thinking-body" class="thinking__body"></pre>
-  </aside>
+</nav>
+
+<main id="main">
+  <div class="container">
+
+    <!-- ================= hero ================= -->
+    <section class="hero" id="top">
+      <p class="section__eyebrow">Mistral October Community Challenge</p>
+      <h1 class="hero__title">Le Chonk defends<br />the last <span class="gradient-text gradient-text--animated">lasagna</span> on Earth</h1>
+      <p class="hero__subtitle">
+        Verminvaders is a love letter to Space Invaders: a fat cat spits furballs at
+        forty hungry rodents marching toward a lasagna. The twist - it was built to be
+        played by an AI. A harness drives the game and Mistral's model
+        <em>mistral-large-4</em> does the strategizing, live and on screen.
+      </p>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="game/">Play the game</a>
+        <a class="btn btn--muted" href="#how-to-play">How to play</a>
+      </div>
+      <div class="hero__meta" aria-hidden="false">
+        <span class="tag">Space Invaders</span>
+        <span class="tag">Canvas &amp; vanilla JS</span>
+        <span class="tag">Playwright harness</span>
+        <span class="tag">mistral-large-4</span>
+      </div>
+      <a class="hero__scroll" href="#how-to-play" aria-label="Scroll to how to play">
+        <span>scroll</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 2v11m0 0 4-4m-4 4-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </a>
+    </section>
+
+    <!-- ================= screenshots ================= -->
+    <section class="section" id="screenshots" aria-labelledby="screenshots-title">
+      <p class="section__eyebrow">Screenshots</p>
+      <h2 class="section__title" id="screenshots-title">One canvas, forty rodents, one lasagna</h2>
+      <p class="section__lead">
+        The game itself is a single 480&times;600 canvas in the style of the 1978
+        original. When the AI harness plays, two glass panels join the stage and
+        stream the model's thoughts and strategy in real time.
+      </p>
+
+      <div class="shot-row">
+        <figure class="figure card card-hover figure__frame">
+          <img src="assets/shot-title.png" alt="The Verminvaders title screen: a fat cat facing a formation of rodents above a slice of lasagna." loading="lazy" />
+          <figcaption>Title screen - press space (or the AI does it for you)</figcaption>
+        </figure>
+        <figure class="figure card card-hover figure__frame">
+          <img src="assets/shot-gameplay.png" alt="Mid-game: the rodent formation marches downward while crumbs fall toward the cat." loading="lazy" />
+          <figcaption>Mid-wave - the formation marches, crumbs rain down</figcaption>
+        </figure>
+        <figure class="figure card card-hover figure__frame">
+          <img src="assets/shot-ai-playing.png" alt="The full game window with the canvas on the left and two panels on the right showing Le Chonk's current strategy and streamed thoughts." loading="lazy" />
+          <figcaption>
+            The AI at work - the strategy strip above the stage and Le Chonk's
+            thoughts beside it, streamed live while mistral-large-4 strategizes
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ================= how to play ================= -->
+    <section class="section" id="how-to-play" aria-labelledby="how-to-play-title">
+      <p class="section__eyebrow">How to play</p>
+      <h2 class="section__title" id="how-to-play-title">You are the cat. The lasagna is non-negotiable.</h2>
+      <p class="section__lead">
+        Five rows of rodents - rats on top, mice below - march side to side and
+        descend on the walls. If any of them reaches the lasagna line, dinner is
+        over. You have three lives and one furball in the air at a time. Good luck.
+      </p>
+
+      <div class="step-grid">
+        <div class="card card-hover step">
+          <span class="step__number" aria-hidden="true">1</span>
+          <h3>Move &amp; shoot</h3>
+          <p class="card__body">
+            Glide with <kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>A</kbd> <kbd>D</kbd> -
+            or tap/click where the cat should go. <kbd>Space</kbd> (or another tap)
+            spits a furball. Classic rules apply: one furball in the air at a time,
+            so make it count. The shields can be chewed through.
+          </p>
+        </div>
+        <div class="card card-hover step">
+          <span class="step__number" aria-hidden="true">2</span>
+          <h3>Dodge</h3>
+          <p class="card__body">
+            Rodents drop crumbs. Three lives, two seconds of invulnerability after a
+            hit. As fewer rodents remain, they march faster - the endgame is the killer.
+          </p>
+        </div>
+        <div class="card card-hover step">
+          <span class="step__number" aria-hidden="true">3</span>
+          <h3>Or just watch</h3>
+          <p class="card__body">
+            Prefer to spectate? Run the harness and watch the AI play - its reasoning
+            is streamed into the panels next to the stage. <kbd>P</kbd> pauses.
+          </p>
+        </div>
+      </div>
+
+      <p style="margin-top: 2rem; text-align: center;">
+        <a class="btn btn--primary" href="game/">Start playing</a>
+      </p>
+    </section>
+
+    <!-- ================= watch ================= -->
+    <section class="section" id="watch" aria-labelledby="watch-title">
+      <p class="section__eyebrow">Watch it play</p>
+      <h2 class="section__title" id="watch-title">mistral-large-4, mid-wave, unedited</h2>
+      <p class="section__lead">
+        A short, real recording of the harness playing Verminvaders. The cat's
+        reflexes come from deterministic code; every strategy call goes to
+        mistral-large-4, which pauses the game, reads the situation, retunes its
+        parameters and resumes play. The panels show exactly what it is thinking.
+      </p>
+
+      <div class="figure-grid">
+        <figure class="figure figure--wide card figure__frame video-shell">
+          <video controls preload="metadata" poster="assets/shot-video-poster.png" width="720">
+            <source src="assets/le-chonk-plays.webm" type="video/webm" />
+            <p>Your browser cannot play this WebM clip of the AI session.</p>
+          </video>
+          <figcaption>
+            Recorded gameplay: the executor dodges and shoots while the strategist
+            consults mistral-large-4 between waves and every 20 seconds of play
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ================= how & why ================= -->
+    <section class="section" id="built" aria-labelledby="built-title">
+      <p class="section__eyebrow">How &amp; why it was built</p>
+      <h2 class="section__title" id="built-title">A game built to be played by an AI</h2>
+      <p class="section__lead">
+        Verminvaders exists because of the <strong>Mistral October Community
+        Challenge</strong>: build something that makes an LLM play a game. The answer
+        here is an AI harness - a small program that opens the game in a real
+        Chromium browser, reads its state, and asks Mistral's model
+        <em>mistral-large-4</em> to strategize. Neither the game nor the model knows
+        about the other beyond a narrow, well-defined bridge.
+      </p>
+
+      <div class="pipeline" role="img" aria-label="Pipeline from the game to the harness to the executor and strategist, with memory in between">
+        <div class="pipeline__node">
+          <strong>The game</strong>
+          <span>Canvas, vanilla JS, 1978 rules. Exposes a bridge: <code>window.verminvaders</code></span>
+        </div>
+        <div class="pipeline__arrow" aria-hidden="true">&rarr;</div>
+        <div class="pipeline__node">
+          <strong>The harness</strong>
+          <span>Node.js + Playwright. Reads state every 80&nbsp;ms, feeds inputs back</span>
+        </div>
+        <div class="pipeline__arrow" aria-hidden="true">&rarr;</div>
+        <div class="pipeline__node">
+          <strong>The executor</strong>
+          <span>Deterministic reflexes: dodge, aim, lead the target, shoot</span>
+        </div>
+        <div class="pipeline__arrow" aria-hidden="true">&harr;</div>
+        <div class="pipeline__node">
+          <strong>The strategist</strong>
+          <span>mistral-large-4 retunes the executor's 16 levers, with persistent memory</span>
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div class="card card-hover">
+          <h3>Two brains, one cat</h3>
+          <p class="card__body">
+            The fast layer plays frame by frame: dodge crumbs, aim, fire. The smart
+            layer - the LLM - never touches the controls. It only decides <em>how
+            the reflexes are weighted</em>: how greedy, how defensive, where to camp.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>Plays fair, keeps notes</h3>
+          <p class="card__body">
+            The game pauses while the model thinks, so network latency can never cost
+            a life - a watchdog guarantees play resumes even if the model call fails.
+            And between games the strategist keeps notes: what worked, where it died,
+            which columns rain crumbs. Next game, it opens with a plan.
+          </p>
+        </div>
+        <div class="card card-hover">
+          <h3>Why it's hard</h3>
+          <p class="card__body">
+            One furball at a time versus forty rodents that fire nonstop and march
+            faster as they thin out. The first wave alone took the AI three attempts
+            - it usually dies in the last few seconds of a near-perfect clear.
+          </p>
+        </div>
+      </div>
+
+      <div class="stat-strip" aria-label="Some numbers behind the game">
+        <div class="card stat"><div class="stat__value">480&times;600</div><div class="stat__label">pixels of arena</div></div>
+        <div class="card stat"><div class="stat__value">40</div><div class="stat__label">rodents per wave</div></div>
+        <div class="card stat"><div class="stat__value">80&nbsp;ms</div><div class="stat__label">per reflex tick</div></div>
+        <div class="card stat"><div class="stat__value">16</div><div class="stat__label">levers the AI tunes</div></div>
+        <div class="card stat"><div class="stat__value">3</div><div class="stat__label">lives. That's it.</div></div>
+      </div>
+
+      <div class="callout">
+        Curious what the model actually sees, tunes and remembers - in plain words?
+        <a class="link-underline" href="insights/">Read the development insights &rarr;</a>
+      </div>
+    </section>
+  </div>
 </main>
-<div class="hint">Click the game once so it can hear your keyboard.</div>
-<script src="game.js"></script>
+
+<footer class="footer">
+  <div class="container footer__inner">
+    <ul class="footer__links">
+      <li><a class="footer__link" href="game/">Play the game</a></li>
+      <li><a class="footer__link" href="insights/">Development insights</a></li>
+      <li><a class="footer__link" href="https://github.com/tq-bit/verminvaders">GitHub repository</a></li>
+      <li><a class="footer__link" href="https://mistral.ai/">Mistral AI</a></li>
+    </ul>
+    <p class="footer__copyright">
+      Verminvaders - built for the Mistral October Community Challenge. No cats or rodents were harmed.
+    </p>
+  </div>
+</footer>
+
+<script src="assets/flow-background.js"></script>
+<script>FlowBackground.init();</script>
 </body>
 </html>

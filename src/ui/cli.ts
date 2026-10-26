@@ -33,7 +33,7 @@ export function intEnv(name: string, fallback: number): number {
   return n;
 }
 
-const DEFAULT_GAME = () => path.resolve(import.meta.dirname, "..", "..", "app", "index.html");
+const DEFAULT_GAME = () => path.resolve(import.meta.dirname, "..", "..", "app", "game", "index.html");
 const DEFAULT_MEMORY = () =>
   path.resolve(import.meta.dirname, "..", "..", "memory", "mistral-strategy.json");
 

@@ -67,11 +67,11 @@ async function main(): Promise<void> {
   try {
     browser = await chromium.launch({ headless: !args.headed });
     // the window fits the whole stage with breathing room (24px body
-    // padding, measured): the canvas column (strategy strip + canvas =
-    // 484x824) plus the 460px thoughts feed and the hint line
+    // padding, measured): the full-width strategy strip (964x200) over the
+    // playing row (canvas 484 + gap 20 + thoughts 460) and the hint line
     const vp = args.noLlm
       ? { width: 532, height: 674 }
-      : { width: 1014, height: 900 };
+      : { width: 1012, height: 900 };
     if (args.videoDir) {
       const context = await browser.newContext({
         viewport: vp,

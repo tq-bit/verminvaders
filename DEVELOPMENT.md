@@ -194,7 +194,7 @@ The executor is deterministic by default. All of *its* randomness flows
 through one seeded generator (`policy/rng.ts`, mulberry32), so identical
 seeds replay identical **executor decisions** — exploration and jitter
 stay testable and debuggable. The rodents fire through their own RNG
-(`verminRng` in `app/game.js`): unseeded `Math.random` at `verminSeed =
+(`verminRng` in `app/game/game.js`): unseeded `Math.random` at `verminSeed =
 -1`, otherwise a mulberry32 stream reset fresh at every `startGame()`,
 so a fixed vermin seed replays the same crumb schedule and shooter
 picks every game. `verminSeed` is a strategy lever like the executor
@@ -343,7 +343,7 @@ record, retunes the weights, and the executor plays differently.**
 
 Short verdict: **wave 1 alone is genuinely hard, and the difficulty curve
 is steepest exactly where players die — the last few rodents.**
-All numbers from `app/game.js`.
+All numbers from `app/game/game.js`.
 
 - **Throughput bottleneck (core difficulty).** One furball at a time at
   430 px/s means ~0.7–1.5 s per shot once repositioning is counted (the
@@ -548,14 +548,17 @@ and `setParams` merges it over the previous set, so a bad or partial
 answer degrades the policy's behavior rather than breaking it.
 
 The same stream also surfaces in the game page itself, in two glass
-panels. "Current Strategy" is a 484x200 strip sitting on top of the
-canvas: it settles to the extracted `notes` (`extractNotesPrefix` in
-`strategy-params.ts`, ~4 Hz) plus the post-mortem's next-game plan and
-the levers the executor plays with. "Le Chonk's thoughts" is the
-bigger feed beside the stage, streaming the model's raw reasoning
-chain live (`onThinkingDelta`, throttled to ~7 Hz, tail kept). While
-the game is paused for a consultation both panels are marked live
-(pulsing status, blinking cursor). The harness window is sized to fit
-the whole stage plus a 24px body margin: 1014x900 with the LLM on,
-532x674 without.
+panels. "Current Strategy" is a full-width strip (964x200) across the
+top of the stage, above the playing row: it settles to the extracted
+`notes` (`extractNotesPrefix` in `strategy-params.ts`, ~4 Hz) plus the
+post-mortem's next-game plan and the levers the executor plays with.
+"Le Chonk's thoughts" is the feed beside the canvas, capped at the
+playing window's height (604px) and streaming the model's raw
+reasoning chain live (`onThinkingDelta`, throttled to ~7 Hz, tail
+kept). While the game is paused for a consultation both panels are
+marked live (pulsing status, blinking cursor). The panel bodies
+scroll internally (`min-height: 0` + `contain: inline-size`: long
+streams must neither grow their panels nor inflate the stage). The
+harness window is sized to fit the whole stage plus a 24px body
+margin: 1012x900 with the LLM on, 532x674 without.
 

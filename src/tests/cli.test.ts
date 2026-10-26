@@ -16,7 +16,7 @@ describe("parseArgs (commander)", () => {
     assert.equal(a.style, "");
     assert.equal(a.noLlm, false);
     assert.equal(a.thinking, true, "reasoning streams unless --no-thinking");
-    assert.ok(a.gamePath.endsWith("app/index.html"));
+    assert.ok(a.gamePath.endsWith("app/game/index.html"));
     assert.ok(a.memoryPath.endsWith("mistral-strategy.json"));
   });
 

@@ -30,15 +30,15 @@ body {
 
 .stage {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
-  justify-content: center;
   gap: 20px;
 }
 
-/* left column: the settled strategy sits on top of the game */
-.stage__left {
+/* playing row: the canvas with the reasoning feed beside it */
+.stage__main {
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
   gap: 20px;
 }
 
@@ -87,16 +87,18 @@ canvas {
 .strategy[hidden],
 .thinking[hidden] { display: none; }
 
-/* strategy: canvas-wide strip above the game */
+/* strategy: full-width strip across the top of the stage */
 .strategy {
-  width: 484px;
+  width: 100%;
   height: 200px;
   flex: none;
 }
 
-/* the reasoning chain is the bigger feed, stretching beside the column */
+/* the reasoning chain is capped at the playing window's height (604px
+   outer, like the canvas) and sits beside it */
 .thinking {
   width: 460px;
+  max-height: 604px;
 }
 
 .strategy__header,
@@ -144,6 +146,12 @@ canvas {
 .strategy__body,
 .thinking__body {
   flex: 1;
+  /* flex items default to min-height: auto — without this cap the body
+     grows its panel with the streamed text instead of scrolling inside */
+  min-height: 0;
+  /* long streamed text must not inflate the stage's intrinsic width:
+     the stage is sized by the playing row, the strip stretches to it */
+  contain: inline-size;
   margin: 12px 0 0;
   font-family: inherit;
   font-size: 12.5px;
@@ -188,12 +196,12 @@ canvas {
   50% { opacity: 0; }
 }
 
-/* narrow viewports: stack the panels under the canvas. The wide row needs
-   966px (canvas column 484 + gap 20 + thoughts 462) */
+/* narrow viewports: stack everything. The wide layout needs 966px
+   (canvas 484 + gap 20 + thoughts 462) */
 @media (max-width: 965px) {
-  .stage { flex-direction: column; align-items: center; }
+  .stage, .stage__main { flex-direction: column; align-items: center; }
   .strategy { width: auto; max-width: 484px; }
-  .thinking { width: auto; max-width: 480px; max-height: 300px; }
+  .thinking { width: auto; max-width: 480px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

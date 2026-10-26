@@ -93,7 +93,7 @@ You can tweak how the AI plays the game. `--headed` allows you to watch the mode
 | `--style '<directive>'` | (none) | Operator directive injected into the model's prompt — see below. |
 | `--memory <path>` | `memory/mistral-strategy.json` | Where the model's persistent memory lives. |
 | `--persona <path>` | `src/persona/lines.json` | Custom fat-cat lines file. |
-| `--game <path>` | `app/index.html` | Path to the game page. |
+| `--game <path>` | `app/game/index.html` | Path to the game page. |
 | `--mode realtime\|considered` | `realtime` | `considered` also pauses the game around every executor tick (slow; mostly for debugging). |
 | `--poll <ms>` | `80` | Executor tick interval. |
 | `--log-level silent\|normal\|verbose` | `normal` | `verbose` logs every shot; `silent` also silences the cat. |
