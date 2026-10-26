@@ -165,6 +165,21 @@ export class Harness {
     await this.applyParams(params);
   }
 
+  // Presentation hold at the wave boundary (--intermission-ms): freeze the
+  // freshly shown banner for a moment so the transition is not abrupt, then
+  // let the game's own countdown finish and the next wave start. The freeze
+  // is deliberate pacing, not model waiting — consultations keep running.
+  private async holdIntermission(): Promise<void> {
+    const hold = this.opts.intermissionMs ?? 0;
+    if (hold <= 0) return;
+    await this.conn.pause();
+    try {
+      await sleep(hold);
+    } finally {
+      await this.conn.resume().catch(() => {});
+    }
+  }
+
   // Epoch boundary. Paused mode: freeze the game, let Mistral reason about
   // the finished epoch, apply the tuned params, start a new epoch, resume.
   // Async mode: fire the consultation in the background and keep playing —
@@ -212,8 +227,10 @@ export class Harness {
   // RESETS the epoch clock — otherwise an epoch deadline that expired
   // during the intermission would fire a second consultation on resume.
   private async handleWavePlan(s: GameState): Promise<void> {
-    if (!this.wavePlanPending || !this.strategy) return;
+    if (!this.wavePlanPending) return;
     this.wavePlanPending = false;
+    await this.holdIntermission();
+    if (!this.strategy) return;
     this.log(`wave ${s.wave} cleared; asking Mistral for the next wave's strategy...`);
     if (this.opts.strategyMode === "async") {
       const fresh = await this.conn.readState();
@@ -296,6 +313,13 @@ export class Harness {
         const params = await this.strategy.openingStrategy(s);
         if (params) await this.applyParams(params);
       }
+    }
+    // linger on the game-over screen for a moment before the next game
+    // starts (--intermission-ms); the game-over state is static, so no
+    // pause is needed here — the sleep simply delays start()
+    if (s.phase === "gameover") {
+      const hold = this.opts.intermissionMs ?? 0;
+      if (hold > 0) await sleep(hold);
     }
     await this.conn.start();
     this.gamesStarted++;

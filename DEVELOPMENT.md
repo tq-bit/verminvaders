@@ -47,7 +47,11 @@ epoch clock**, so an epoch deadline that expired during the intermission is
 postponed instead of triggering a second consultation once play continues.
 (An epoch
 update that fired during the final seconds of *play* is legitimate
-play-time reasoning and is not suppressed.) The epoch clock can also be
+play-time reasoning and is not suppressed.) For presentation, a small
+configurable hold (`--intermission-ms`, default 2 s) lingers on the
+wave-clear banner (a brief pause-resume in `handleWavePlan`, `holdIntermission`)
+and delays the next game's `start()` after a game over — pacing only;
+consultations are unaffected and keep running. The epoch clock can also be
 primed before a session starts: on a TTY the harness runs an interactive
 setup wizard (games, epoch period, strategy mode, style directive,
 reasoning display — `--no-prompt` skips it) with the flag values as

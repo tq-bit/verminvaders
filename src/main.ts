@@ -8,6 +8,7 @@
 //                [--games <n>] [--persona <path>] [--game <path>]
 //                [--log-level silent|normal|verbose] [--model <name>]
 //                [--epoch-ms <n>] [--strategy-mode async|paused]
+//                [--intermission-ms <n>]
 //                [--memory <path>] [--style 'directive']
 //                [--no-llm] [--no-thinking] [--no-prompt]
 
@@ -103,6 +104,7 @@ async function main(): Promise<void> {
     maxGames: args.maxGames,
     epochMs: args.noLlm ? 0 : args.epochMs,
     strategyMode: args.noLlm ? "paused" : args.strategyMode,
+    intermissionMs: args.intermissionMs,
     logLevel: args.logLevel,
   };
 

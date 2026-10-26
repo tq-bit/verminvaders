@@ -51,6 +51,7 @@ export function parseArgs(argv: string[]): Args {
     .option("--model <name>", "which Mistral model is the strategic brain", "mistral-large-4")
     .option("--epoch-ms <n>", "strategy epoch in ms; omit for per-wave strategy (no mid-wave updates)", Number)
     .option("--strategy-mode <mode>", "async = play on while Mistral strategizes in the background; paused = freeze the game during consultations", "async")
+    .option("--intermission-ms <n>", "extra hold in ms on the wave-clear banner and the game-over screen before the next wave/game starts; 0 disables", Number, 2000)
     .option("--memory <path>", "where the model's persistent memory lives")
     .option("--style <directive>", "operator directive injected into the model's prompt", "")
     .option("--no-llm", "skip all API calls; the executor plays with default parameters")
@@ -86,6 +87,7 @@ export function parseArgs(argv: string[]): Args {
     model: o.model as string,
     epochMs: o.epochMs as number | undefined,
     strategyMode: strategyMode as Args["strategyMode"],
+    intermissionMs: o.intermissionMs as number,
     memoryPath: o.memory ? path.resolve(String(o.memory)) : DEFAULT_MEMORY(),
     style: o.style as string,
     noLlm: o.llm === false,

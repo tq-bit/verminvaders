@@ -13,6 +13,8 @@ export interface Args {
   epochMs?: number;
   /** async = play on while Mistral strategizes; paused = freeze during consultations */
   strategyMode: "async" | "paused";
+  /** extra hold in ms on the wave-clear banner and the game-over screen; 0 disables */
+  intermissionMs: number;
   memoryPath: string;
   style: string;
   noLlm: boolean;

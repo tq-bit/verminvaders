@@ -10,6 +10,8 @@ export interface RunOptions {
   epochMs?: number;
   /** async = strategize in the background, never pause play; paused = freeze during consultations */
   strategyMode?: "async" | "paused";
+  /** presentation hold in ms on the wave-clear banner and the game-over screen; 0 = off */
+  intermissionMs?: number;
   logLevel: "silent" | "normal" | "verbose";
 }
 

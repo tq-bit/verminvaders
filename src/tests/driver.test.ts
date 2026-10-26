@@ -420,8 +420,7 @@ describe("Harness async strategy mode", () => {
     assert.deepEqual(conn.verminSeeds, [31337], "opening params apply mid-play when they land");
   });
 
-  it("opens game 1 on the params the model last played with", async () => {
-    const conn = fakeConn();
+  it("opens game 1 on the params the model last played with", async () => {    const conn = fakeConn();
     const strategy = {
       tracker: { observe: () => {}, noteShot: () => {} },
       lastKnownParams: () => ({ ...DEFAULT_EXECUTOR_PARAMS, verminSeed: 2024 }),
@@ -472,5 +471,83 @@ describe("Harness async strategy mode", () => {
     assert.deepEqual(conn.verminSeeds, [777], "paused mode applies post-mortem params directly");
     assert.equal(conn.counts.pauses, 1, "paused mode freezes the game-over screen");
     assert.equal(conn.counts.resumes, 1, "and resumes it afterwards");
+  });
+});
+
+describe("Harness intermission hold", () => {
+  it("holds the wave-clear banner for --intermission-ms before the wave continues", async () => {
+    const conn = fakeConn();
+    let waveCalls = 0;
+    const strategy = {
+      tracker: { observe: () => {}, noteShot: () => {} },
+      wavePlan: async () => {
+        waveCalls++;
+        return DEFAULT_EXECUTOR_PARAMS;
+      },
+    };
+    const harness = new Harness(
+      conn as never,
+      new HeuristicPolicy(),
+      { event: () => {} } as never,
+      opts({ strategyMode: "async", intermissionMs: 60 }),
+      {},
+      strategy as never,
+    );
+    const h = harness as unknown as {
+      handleWavePlan(s: unknown): Promise<void>;
+      wavePlanPending: boolean;
+    };
+    h.wavePlanPending = true;
+    const t0 = Date.now();
+    await h.handleWavePlan(makeState({ phase: "waveclear", wave: 2 }));
+    assert.ok(Date.now() - t0 >= 50, "the banner must be held for the configured time");
+    assert.equal(conn.counts.pauses, 1, "the banner freeze pauses the game");
+    assert.equal(conn.counts.resumes, 1, "and resumes it afterwards");
+    assert.equal(waveCalls, 1, "the background wave plan still fires");
+  });
+
+  it("holds no hold when --intermission-ms is unset", async () => {
+    const conn = fakeConn();
+    const strategy = {
+      tracker: { observe: () => {}, noteShot: () => {} },
+      wavePlan: async () => DEFAULT_EXECUTOR_PARAMS,
+    };
+    const harness = new Harness(
+      conn as never,
+      new HeuristicPolicy(),
+      { event: () => {} } as never,
+      opts({ strategyMode: "async" }),
+      {},
+      strategy as never,
+    );
+    const h = harness as unknown as {
+      handleWavePlan(s: unknown): Promise<void>;
+      wavePlanPending: boolean;
+    };
+    h.wavePlanPending = true;
+    await h.handleWavePlan(makeState({ phase: "waveclear", wave: 2 }));
+    assert.equal(conn.counts.pauses, 0, "no configured hold: no pause");
+  });
+
+  it("lingers on the game-over screen before the next game starts", async () => {
+    const conn = fakeConn();
+    const strategy = {
+      tracker: { observe: () => {}, noteShot: () => {} },
+      postMortem: async () => null,
+      openingStrategy: async () => null,
+    };
+    const harness = new Harness(
+      conn as never,
+      new HeuristicPolicy(),
+      { event: () => {} } as never,
+      opts({ strategyMode: "async", maxGames: 3, intermissionMs: 60 }),
+      {},
+      strategy as never,
+    );
+    const h = harness as unknown as { handleRestart(s: unknown): Promise<void>; gamesStarted: number };
+    h.gamesStarted = 1;
+    const t0 = Date.now();
+    await h.handleRestart(makeState({ phase: "gameover" }));
+    assert.ok(Date.now() - t0 >= 50, "the game-over screen must linger for the configured time");
   });
 });

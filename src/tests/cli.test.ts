@@ -14,6 +14,7 @@ describe("parseArgs (commander)", () => {
     assert.equal(a.model, "mistral-large-4");
     assert.equal(a.epochMs, undefined, "no --epoch-ms: per-wave strategy");
     assert.equal(a.strategyMode, "async", "async is the default: play while Mistral thinks");
+    assert.equal(a.intermissionMs, 2000, "a 2 s intermission hold by default");
     assert.equal(a.style, "");
     assert.equal(a.noLlm, false);
     assert.equal(a.thinking, true, "reasoning streams unless --no-thinking");
@@ -55,6 +56,11 @@ describe("parseArgs (commander)", () => {
       () => parseArgs(["node", "main.ts", "--strategy-mode", "sometimes"]),
       /invalid --strategy-mode/,
     );
+  });
+
+  it("parses --intermission-ms", () => {
+    const a = parseArgs(["node", "main.ts", "--intermission-ms", "500"]);
+    assert.equal(a.intermissionMs, 500);
   });
 
   it("rejects unknown options", () => {

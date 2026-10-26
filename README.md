@@ -99,6 +99,7 @@ You can tweak how the AI plays the game. `--headed` allows you to watch the mode
 | `--model <name>` | `mistral-large-4` | Which Mistral model is the strategic brain. |
 | `--epoch-ms <n>` | (none) | Strategy epoch length: the model is consulted mid-play every n ms. Omit it for per-wave strategy — no mid-wave stops, the model retunes once per cleared wave (plus opening/post-mortem). |
 | `--strategy-mode async\|paused` | `async` | `async` (default): the game keeps playing while Mistral strategizes in the background; new params apply the moment the model returns. `paused`: the classic fair-play catnap — the game freezes around every consultation. |
+| `--intermission-ms <n>` | `2000` | Small presentation hold on the wave-clear banner and the game-over screen before the next wave/game starts; `0` disables. |
 | `--style '<directive>'` | (none) | Operator directive injected into the model's prompt — see below. |
 | `--memory <path>` | `memory/mistral-strategy.json` | Where the model's persistent memory lives. |
 | `--persona <path>` | `src/persona/lines.json` | Custom fat-cat lines file. |
