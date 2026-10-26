@@ -41,6 +41,8 @@ export class StrategyController {
   private asyncStrategy: boolean;
   /** promise chain: consultations never overlap (shared memory + callbacks) */
   private queue: Promise<unknown> = Promise.resolve();
+  /** consultations enqueued or streaming right now (0 = strategist idle) */
+  private activeConsults = 0;
 
   private style: string;
 
@@ -245,10 +247,27 @@ export class StrategyController {
   // share this.memory, this.lastParams and the UI callbacks — so they run
   // one at a time, in the order they were requested.
   private async askModelRaw(instruction: string, payload: unknown): Promise<StrategyResponse | null> {
-    const run = () => this.doAskModelRaw(instruction, payload);
+    this.activeConsults++;
+    const run = () =>
+      this.doAskModelRaw(instruction, payload).finally(() => {
+        this.activeConsults--;
+      });
     const result = this.queue.then(run, run);
     this.queue = result.catch(() => {});
     return result;
+  }
+
+  // True while a consultation is enqueued or streaming — the session may
+  // end with the final post-mortem still reasoning in the background.
+  get busy(): boolean {
+    return this.activeConsults > 0;
+  }
+
+  // Resolves when every queued consultation has finished. Called on session
+  // end so the browser stays open (and the panels keep streaming) until the
+  // model is done strategizing.
+  async drain(): Promise<void> {
+    await this.queue;
   }
 
   private async doAskModelRaw(instruction: string, payload: unknown): Promise<StrategyResponse | null> {

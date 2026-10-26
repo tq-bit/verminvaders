@@ -1,10 +1,24 @@
-# Verminvaders — AI Harness challenge for Le Chonk
+<h1 align="center">Verminvaders — AI Harness challenge for Le Chonk</h1>
 
-This repostory was made for the October Community Challenge by https://mistral.ai/. It builds up on the game Space Invaders by Taito, originally developed and released in 1978 Japan. It also uses original design from the Mistral Vibe CLI (I love the dot design of the cat and [adapted it from this file](https://github.com/mistralai/mistral-vibe/blob/63d0e8f17e2c1f0d9e1d6f4399ab2dc10fbdf477/vibe/cli-rust/src/ui/banner/petit_chat.rs))
+<p align="center">
+  <em>Defend earth (a piece of lasagna) from invaders (hungry mice and rodents) by shooting (spitting furballs at) them.</em>
+</p>
 
-The goal is to defend earth (= a piece of lasagna) from invaders (= hungry mice and rodents) by shooting (= spitting furballs at) them.
+<p align="center">
+  <a href="https://github.com/tq-bit/verminvaders/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/tq-bit/verminvaders?style=flat&color=FF7000"></a>
+  <img alt="Last Commit" src="https://img.shields.io/github/last-commit/tq-bit/verminvaders?style=flat">
+  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-24%2B-339933?style=flat&logo=nodedotjs&logoColor=white">
+  <img alt="Playwright" src="https://img.shields.io/badge/Playing%20with-Playwright-2EAD33?style=flat&logo=playwright&logoColor=white">
+  <img alt="Made with Mistral" src="https://img.shields.io/badge/Made%20with-Mistral-FF7000?style=flat&logo=mistralai&logoColor=white">
+</p>
 
-> Note: No cats or rodents were hurt during this game's development
+<p align="center">
+  <img src="./app/assets/shot-ai-playing.png" alt="The game being played — Le Chonk defending its lasagna from rodent invaders" width="720">
+</p>
+
+> Note: No cats or rodents were hurt during this game's development.
+
+This repository was made for the October Community Challenge by [Mistral AI](https://mistral.ai/). It builds up on the game Space Invaders by Taito, originally developed and released in 1978 Japan. It also uses original design from the Mistral Vibe CLI (I love the dot design of the cat and [adapted it from this file](https://github.com/mistralai/mistral-vibe/blob/63d0e8f17e2c1f0d9e1d6f4399ab2dc10fbdf477/vibe/cli-rust/src/ui/banner/petit_chat.rs)).
 
 Since I had no prior experience developing games nor developing AI harnesses, Mistral Vibe did the major development part. My contribution was mainly the idea, name, some details about the figures and design. I did learn a lot about harness and game development though, and had a lot of fun making decisions how the cat and rodents move and behave.
 
@@ -12,17 +26,17 @@ If you're curious about the game yourself, you can find it under **https://tq-bi
 
 ## The technical part
 
-The harness uses Playwright on a Chromium Server. It talks to the game's Harness Bridge (`window.verminvaders`) to read the game's current state and feed it to the model, which then strategizes what to do next. Each strategy is fed back into the harness and the next round (= game epoch) starts. This loop goes on until all rodents are eliminiated or the cat is overwhelmed.
+The harness uses Playwright on a Chromium Server. It talks to the game's Harness Bridge (`window.verminvaders`) to read the game's current state and feed it to the model, which then strategizes what to do next. Each strategy is fed back into the harness and the next round (= game epoch) starts. This loop goes on until all rodents are eliminated or the cat is overwhelmed.
 
 > By default the game keeps running while the model strategizes — the harness plays on with its current parameters and applies the model's new plan the moment it returns. If you prefer to play the game with a cat-nap between strategies, pass `--strategy-mode paused` and the game freezes during every consultation.
 
-The harness has a simple memory function built-in to strategize and learn from previous mistakes. Turns out it is able to play the game much better than I used to be.
+The harness has a simple memory function built-in to strategize and learn from previous mistakes. In my attempts, it got much better over time, reaching stage 3 after only a few iterations.
 
 The model's own words also appear in the game page, in two glass panels right of the canvas: "Le Chonk's thoughts" streams its raw reasoning chain live while it strategizes, and "Current Strategy" settles to its plan for the next epoch or game plus the executor levers it will play with. The `--headed` window (and every recording) is sized to fit both.
 
 ### How a session flows
 
-```
+```text
 serve game -> launch Chromium -> connect to window.verminvaders (10 s timeout)
   -> start() on title
   -> executor ticks every 80 ms (aim, dodge, shoot, reposition)
@@ -52,9 +66,10 @@ harness, resumes the game, and closes the browser cleanly.
 ### Requirements
 
 - **Node.js 24+** (TypeScript runs natively via type stripping), npm, and a Chromium download.
-- Also, copy the .env.example file and add a MISTRAL_API_KEY
+- Also, copy the `.env.example` file and add a `MISTRAL_API_KEY`.
 
-To get started, run
+To get started, run:
+
 ```bash
 cd src
 # install dependencies (incl. Playwright)
@@ -65,14 +80,14 @@ npx playwright install chromium
 cp .env.example .env
 ```
 
-Two optional environment-variables tune how much history the model works with:
+Two optional environment variables tune how much history the model works with:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `VERMINVADERS_CONTEXT_GAMES` | `5` | How many previous games (their strategy summaries and stats) are included in every prompt. `0` = start each game with no game history. |
 | `VERMINVADERS_MEMORY_MAX_GAMES` | `10` | Maximum number of game records persisted in `memory/mistral-strategy.json`. Older records are dropped when the cap is exceeded. |
 
-## Run
+### Run
 
 From `src/`:
 
@@ -90,7 +105,7 @@ npm run typecheck           # tsc --noEmit
 
 ### Flags
 
-You can tweak how the AI plays the game. `--headed` allows you to watch the model play and `--style` controls the default behavior when playing the game. See 'Adjusting the AI's behavior' for more details on this.
+You can tweak how the AI plays the game. `--headed` allows you to watch the model play and `--style` controls the default behavior when playing the game. See [Adjusting the AI's behavior](#adjusting-the-ais-behavior) for more details on this.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
@@ -123,8 +138,10 @@ node main.ts --epoch-ms 5000 --strategy-mode paused
 # three games, survival first
 node main.ts --games 5 --style "careful: survival over score, wide margins"
 
-# let it learn across sessions, then reset the brain
+# let it learn across sessions
 node main.ts
+
+# reset the harness' brain
 rm memory/mistral-strategy.json
 ```
 
@@ -157,4 +174,6 @@ Two layers are adjustable:
 
    Defaults live in `src/policy/heuristic.ts` (`DEFAULT_EXECUTOR_PARAMS`).
 
+## License
 
+This project is licensed under the [MIT License](./LICENSE).

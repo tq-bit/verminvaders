@@ -138,7 +138,10 @@ Key details:
   game frozen. In async mode nothing is ever paused; consultations are
   serialized inside the controller (a wave plan or post-mortem waits for an
   in-flight epoch update instead of overlapping it), and a failed or
-  unparseable answer simply keeps the current params.
+  unparseable answer simply keeps the current params. On session end the
+  entry point drains the queue (`StrategyController.drain()`) so the
+  browser stays open — and the panels keep streaming — until the final
+  post-mortem has finished reasoning.
 
 ## 2. The policy calls (executor decision logic)
 

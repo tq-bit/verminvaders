@@ -211,6 +211,14 @@ async function main(): Promise<void> {
       ),
     );
     await harness.run();
+    // keep the browser open when the game is over until the model is done
+    // strategizing: the final post-mortem runs in the background and streams
+    // into the game's panels — closing now would cut it off mid-thought
+    if (strategy?.busy) {
+      console.log(c.blue("[harness] session done — waiting for the model's final strategizing..."));
+      await strategy.drain();
+      console.log(c.blue("[harness] strategist idle; closing the browser"));
+    }
   } finally {
     // the video file is finalized when the context closes: keep the handle,
     // close, then report where the recording landed

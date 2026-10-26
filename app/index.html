@@ -164,12 +164,21 @@
       <p class="section__eyebrow">How &amp; why it was built</p>
       <h2 class="section__title" id="built-title">A game built to be played by an AI</h2>
       <p class="section__lead">
-        Verminvaders exists because of the <strong>Mistral October Community
-        Challenge</strong>: build something that makes an LLM play a game. The answer
-        here is an AI harness - a small program that opens the game in a real
-        Chromium browser, reads its state, and asks Mistral's model
-        <em>mistral-large-4</em> to strategize. Neither the game nor the model knows
-        about the other beyond a narrow, well-defined bridge.
+        I build Verminvaders for the Mistral October Community Challenge - let Le Chonk have some fun playing a game.
+        My first thought was, of course, make it play Doom. Unfortunately, somebody else already had that idea. So
+        I resorted to the second-best: Space Invaders.
+
+        Now since I had no prior game development experience and the challenge would end within the week, I kicked
+        off a quick demo, learned the basic ideas of a harness and its connectivity, and dove right in using Mistral Vibe
+        as my primary executor.
+
+        The result is the Verminvader Harness - a small Typescript program that plays the game while feeding the game's
+        state to Le Chonk. The idea is to not let the model play in real time, but have the (dumb) harness play the game
+        while Le Chonk strategizes based on game results and come up with new weights (risk/reward, agressiveness, dodging beavior)
+        for the next wave.
+
+        I also gave it a way to cheat - namely by tuning the the vermin's behavior RNG seed, which allows the model to learn the vermin's behavior and plan accordingly.
+        This is not explicitly stated in the prompt, but the model can figure it out by itself and use it to its advantage.
       </p>
 
       <div class="pipeline" role="img" aria-label="Pipeline from the game to the harness to the executor and strategist, with memory in between">

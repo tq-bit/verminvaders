@@ -472,7 +472,7 @@ describe("StrategyController per-game summaries and limits", () => {
     // the controller persists memory between consultations (real fs I/O), so
     // poll the call counter instead of assuming a fixed number of flushes
     const until = async (cond: () => boolean) => {
-      for (let i = 0; i < 100 && !cond(); i++) await flush();
+      for (let i = 0; i < 500 && !cond(); i++) await flush();
     };
     const epochP = ctrl.epochUpdate(makeState()); // in flight, not awaited
     await until(() => fake.starts === 1);
@@ -488,6 +488,29 @@ describe("StrategyController per-game summaries and limits", () => {
 
     const saved = JSON.parse(await readFile(tmpFile, "utf-8"));
     assert.deepEqual(saved.memory, { first: true }, "both answers processed in order");
+    await rm(tmpFile, { force: true });
+  });
+
+  it("drain waits for a background consultation before the session closes", async () => {
+    await rm(tmpFile, { force: true });
+    const fake = new GatedFakeClient();
+    fake.answer = JSON.stringify({
+      params: { dodgeHorizonS: 1.5 },
+      notes: "final tuning",
+      memory: { lessons: ["dodge earlier"] },
+    });
+    const ctrl = await newController(fake, 5, 3);
+    assert.equal(ctrl.busy, false, "the strategist is idle before the first consult");
+
+    const consult = ctrl.openingStrategy(makeState()); // in flight, gated
+    const flush = () => new Promise<void>((r) => setImmediate(r));
+    for (let i = 0; i < 500 && !fake.starts; i++) await flush();
+    assert.equal(ctrl.busy, true, "busy while the model reasons in the background");
+
+    fake.release();
+    await ctrl.drain();
+    assert.equal(ctrl.busy, false, "idle after drain — safe to close the browser");
+    await consult;
     await rm(tmpFile, { force: true });
   });
 
