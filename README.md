@@ -24,6 +24,23 @@ Since I had no prior experience developing games nor developing AI harnesses, Mi
 
 If you're curious about the game yourself, you can find it under **https://tq-bit.github.io/verminvaders/**
 
+## Quickstart
+
+Close the repos, install dependencies, run the game
+
+```bash
+git clone git@github.com:tq-bit/verminvaders.git
+cd src && npm install
+npx playwright install chromium
+# Remember to provide you API key here
+cp .env.example .env
+node main.ts --headed
+```
+
+Click through all the instructions - it will start a default game in async mode. You can read more about tuning the AI's behavior under [Run the Harness](#run-the-harness)
+
+> There is a cheat hidden for the AI to find - RNG seeding for the frontend makes games replayable. If you're keen to try, you can use the `--style` flag to ask the AI to search and use this behavior
+
 ## The technical part
 
 The harness uses Playwright on a Chromium Server. It talks to the game's Harness Bridge (`window.verminvaders`) to read the game's current state and feed it to the model, which then strategizes what to do next. Each strategy is fed back into the harness and the next round (= game epoch) starts. This loop goes on until all rodents are eliminated or the cat is overwhelmed.
@@ -92,7 +109,7 @@ Two optional environment variables tune how much history the model works with:
 From `src/`:
 
 ```bash
-node main.ts                # 5 games, mistral-large-4, 10 s epochs, headless
+node main.ts                # 5 games, mistral-large-4, wave-epochs, headless, async
 node main.ts --headed       # watch it play in a Chromium window
 ```
 
